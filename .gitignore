@@ -1,0 +1,12 @@
+node_modules/
+.claude/
+.cursor/
+FitnessApp/
+Nutrition Data/
+muscle diagram illistration - Search 2_files/
+forge-fitness-app.html
+muscle-map-demo.html
+search_add_to_routine.html
+*.png
+*.jpg
+*.jpeg

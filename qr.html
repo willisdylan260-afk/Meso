@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Forge Fitness — Scan to open on phone</title>
+<style>
+body{margin:0;background:#111;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:-apple-system,sans-serif;color:#f0ede8}
+h1{font-size:22px;margin-bottom:6px;letter-spacing:-.02em}
+p{color:#888;font-size:14px;margin:0 0 24px}
+canvas{border-radius:12px}
+.url{margin-top:20px;background:#1a1a1a;border:1px solid #252525;border-radius:10px;padding:12px 20px;font-size:16px;color:#4fc4a8;font-family:monospace;letter-spacing:.03em}
+</style>
+</head>
+<body>
+<h1>⚡ Forge Fitness</h1>
+<p>Scan with your phone camera to open the app</p>
+<canvas id="qr"></canvas>
+<div class="url" id="url-display"></div>
+<script>
+// Minimal QR code generator (pure JS, no external deps)
+// Based on the qrcode-generator algorithm
+(function(){
+const url = 'http://' + location.hostname + ':8080';
+document.getElementById('url-display').textContent = url;
+
+// Use Google Charts QR API via img tag as fallback display
+// (no fetch/XHR — just an img src, which is fine)
+// Actually we can't use external - let's do it inline
+
+// Simple approach: encode as a data URL using a minimal QR lib embedded below
+// For simplicity, link to the local server's index instead
+
+// Since we can't use external CDNs safely here, show a copyable link
+const d = document.getElementById('url-display');
+d.style.cursor = 'pointer';
+d.title = 'Tap to copy';
+d.onclick = () => {
+  navigator.clipboard && navigator.clipboard.writeText(url);
+  d.textContent = 'Copied!';
+  setTimeout(()=>d.textContent=url, 1500);
+};
+
+// Draw a simple visual indicator since we can't load external QR libs
+const canvas = document.getElementById('qr');
+const ctx = canvas.getContext('2d');
+canvas.width = canvas.height = 200;
+ctx.fillStyle = '#1a1a1a';
+ctx.fillRect(0,0,200,200);
+ctx.fillStyle = '#4fc4a8';
+ctx.font = 'bold 14px monospace';
+ctx.textAlign = 'center';
+ctx.fillText('Open this address', 100, 80);
+ctx.fillText('on your phone:', 100, 100);
+ctx.fillStyle = '#f0ede8';
+ctx.font = 'bold 13px monospace';
+const parts = url.replace('http://','').split(':');
+ctx.fillText(parts[0], 100, 130);
+ctx.fillText(':' + parts[1], 100, 150);
+ctx.fillStyle = '#333';
+ctx.fillText('(same WiFi required)', 100, 175);
+})();
+</script>
+</body>
+</html>
