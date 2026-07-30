@@ -331,6 +331,7 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
 .ex-hd{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;cursor:pointer;user-select:none}
 .ex-hd-name{font-size:14px;font-weight:600;color:var(--text)}
 .ex-hd-sub{font-size:11px;color:var(--text4);margin-top:2px}
+.ex-last-inline{font-size:11px;color:rgba(46,204,113,.75);margin-top:3px;letter-spacing:-.01em}
 .ex-hd-right{display:flex;align-items:center;gap:8px}
 .sets-pill{font-size:11px;color:var(--accent);background:var(--accent-dim);border:0.5px solid var(--accent-border);border-radius:20px;padding:3px 10px}
 .new-ex-badge{font-size:10px;color:var(--gold);background:var(--gold-dim);border:0.5px solid var(--gold-border);border-radius:20px;padding:3px 9px}
@@ -571,6 +572,8 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
 .nr-wcard{background:var(--card2);border:0.5px solid var(--border);border-radius:13px;padding:10px 12px;display:flex;align-items:center;gap:10px;transition:border-color .2s}
 .nr-wcard.nr-cflt{border-color:rgba(231,76,60,.35)}
 .nr-wbadge{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:-.02em;flex-shrink:0}
+.nr-wbadge.nr-type-pick{cursor:pointer;transition:opacity .12s,transform .1s;position:relative}
+.nr-wbadge.nr-type-pick:active{opacity:.7;transform:scale(.88)}
 .nr-wmeta{flex:1;min-width:0}
 .nr-wname{font-size:13px;font-weight:700;color:var(--text);margin-bottom:1px}
 .nr-wmuscles{font-size:10px;color:var(--text5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1078,7 +1081,10 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
     <!-- ── TAB: SEARCH ── -->
     <div class="tab-content" id="tab-search">
       <div class="tab-header">
-        <div class="tab-header-row"><div class="page-title">Exercises</div></div>
+        <div class="tab-header-row">
+          <div class="page-title">Exercises</div>
+          <button type="button" class="hdr-btn" onclick="openNewExSheet()"><i class="ti ti-plus"></i> New</button>
+        </div>
         <div class="tab-sub" id="search-sub">Exercise library</div>
       </div>
       <div class="search-wrap">
@@ -1586,6 +1592,30 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
       <div style="padding:16px 16px 0;display:flex;flex-direction:column;gap:10px">
         <button type="button" onclick="importUrlRoutine()" style="width:100%;background:var(--accent);border:none;border-radius:14px;color:#0a1a15;font-size:15px;font-weight:700;padding:14px;cursor:pointer;font-family:inherit">Add to my routines →</button>
         <button type="button" onclick="dismissRoutineImport()" style="width:100%;background:transparent;border:none;color:var(--text5);font-size:13px;padding:8px;cursor:pointer;font-family:inherit">Dismiss</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── NEW EXERCISE SHEET ── -->
+  <div class="overlay" id="new-ex-overlay" onclick="if(event.target===this)closeNewExSheet()">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-hd">
+        <div>
+          <div class="sheet-title">New Exercise</div>
+          <div class="sheet-sub">Add a custom exercise to your library</div>
+        </div>
+        <button type="button" class="sheet-close" onclick="closeNewExSheet()"><i class="ti ti-x"></i></button>
+      </div>
+      <div class="sheet-body">
+        <div class="nr-section-lbl">Exercise name</div>
+        <input id="new-ex-name" class="nr-text-input" type="text" placeholder="e.g. Hack Squat" maxlength="40"
+               oninput="validateNewEx()" onkeydown="if(event.key==='Enter')saveNewEx()">
+        <div class="nr-section-lbl" style="margin-top:16px">Muscle group</div>
+        <div id="new-ex-muscle-btns" style="display:flex;flex-wrap:wrap;gap:7px;margin-top:6px"></div>
+      </div>
+      <div class="sheet-footer">
+        <button type="button" class="confirm-btn" id="new-ex-save-btn" onclick="saveNewEx()" disabled>Save Exercise</button>
       </div>
     </div>
   </div>
@@ -2351,10 +2381,15 @@ let activeFilter = 'All';
   document.getElementById('filter-chips').innerHTML = MUSCLE_FILTERS.map(f =>
     `<button type="button" class="f-chip${f === 'All' ? ' active' : ''}" onclick="setFilter(this,'${f}')">${f}</button>`
   ).join('');
-  const sub = document.getElementById('search-sub');
-  if (sub) sub.textContent = EXERCISES.length + ' exercises';
+  refreshExerciseSub();
   renderExercises('');
 })();
+
+function refreshExerciseSub() {
+  const sub = document.getElementById('search-sub');
+  const total = EXERCISES.length + userExercises.length;
+  if (sub) sub.textContent = total + ' exercises' + (userExercises.length ? ` · ${userExercises.length} custom` : '');
+}
 
 function setFilter(el, f) {
   document.querySelectorAll('.f-chip').forEach(c => c.classList.remove('active'));
@@ -2364,7 +2399,8 @@ function setFilter(el, f) {
 }
 function filterEx(q) { renderExercises(q); }
 function renderExercises(q = '') {
-  const list = EXERCISES.filter(e =>
+  const allEx = [...EXERCISES, ...userExercises.map(e => ({...e, custom:true}))];
+  const list = allEx.filter(e =>
     (activeFilter === 'All' || e.muscle === activeFilter) &&
     (!q || e.name.toLowerCase().includes(q.toLowerCase()) || e.muscle.toLowerCase().includes(q.toLowerCase()))
   );
@@ -2373,14 +2409,71 @@ function renderExercises(q = '') {
       <div class="ex-row">
         <div class="mdot" style="background:${e.color}"></div>
         <div style="flex:1;min-width:0">
-          <div class="ex-name">${e.name}</div>
+          <div class="ex-name">${e.name}${e.custom ? '<span style="font-size:9px;background:var(--accent-dim);color:var(--accent);border:0.5px solid var(--accent-border);border-radius:8px;padding:1px 6px;margin-left:6px;font-weight:700;letter-spacing:.04em">CUSTOM</span>' : ''}</div>
           <div class="ex-meta">${e.muscle} · ${e.tags}</div>
         </div>
-        <button type="button" class="add-pill" onclick="openSheet('${e.name}','${e.muscle}')">
+        ${e.custom
+          ? `<button type="button" class="add-pill" style="background:transparent;border-color:var(--border);color:var(--text5);margin-right:4px" onclick="deleteCustomEx('${e.name.replace(/'/g,"\\'")}',event)"><i class="ti ti-trash" style="font-size:11px"></i></button>`
+          : ''}
+        <button type="button" class="add-pill" onclick="openSheet('${e.name.replace(/'/g,"\\'")}','${e.muscle}')">
           <i class="ti ti-plus" style="font-size:11px"></i> Add
         </button>
       </div>`).join('')
     : '<div style="color:var(--text5);font-size:13px;text-align:center;padding:30px 0">No exercises found</div>';
+}
+
+// ─── CUSTOM EXERCISE CRUD ───
+const MUSCLE_COLORS = {Chest:'#c45a5a',Back:'#5a8ac4',Legs:'#5ac45a',Shoulders:'#c4a05a',Arms:'#8a5ac4',Core:'#c4c45a'};
+let newExSelMuscle = null;
+
+function openNewExSheet() {
+  newExSelMuscle = null;
+  const inp = document.getElementById('new-ex-name');
+  if (inp) inp.value = '';
+  const btn = document.getElementById('new-ex-save-btn');
+  if (btn) btn.disabled = true;
+  const btns = document.getElementById('new-ex-muscle-btns');
+  if (btns) btns.innerHTML = MUSCLE_FILTERS.filter(f => f !== 'All').map(m =>
+    `<button type="button" onclick="pickNewExMuscle(this,'${m}')" style="padding:7px 14px;border-radius:20px;border:0.5px solid var(--border);background:var(--card);color:var(--text4);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .12s">${m}</button>`
+  ).join('');
+  document.getElementById('new-ex-overlay').classList.add('show');
+  setTimeout(() => inp && inp.focus(), 350);
+}
+function closeNewExSheet() { document.getElementById('new-ex-overlay').classList.remove('show'); }
+function pickNewExMuscle(el, muscle) {
+  newExSelMuscle = muscle;
+  document.querySelectorAll('#new-ex-muscle-btns button').forEach(b => {
+    const active = b === el;
+    b.style.background = active ? 'var(--accent-dim)' : 'var(--card)';
+    b.style.borderColor = active ? 'var(--accent-border)' : 'var(--border)';
+    b.style.color = active ? 'var(--accent)' : 'var(--text4)';
+  });
+  validateNewEx();
+}
+function validateNewEx() {
+  const name = (document.getElementById('new-ex-name')?.value || '').trim();
+  const btn = document.getElementById('new-ex-save-btn');
+  if (btn) btn.disabled = !(name.length >= 2 && newExSelMuscle);
+}
+function saveNewEx() {
+  const name = (document.getElementById('new-ex-name')?.value || '').trim();
+  if (!name || !newExSelMuscle) return;
+  const dupe = [...EXERCISES, ...userExercises].some(e => e.name.toLowerCase() === name.toLowerCase());
+  if (dupe) { showToast('An exercise with that name already exists'); return; }
+  userExercises.push({name, muscle: newExSelMuscle, tags: 'Custom', color: MUSCLE_COLORS[newExSelMuscle] || '#888'});
+  saveState();
+  refreshExerciseSub();
+  renderExercises(document.getElementById('ex-search')?.value || '');
+  closeNewExSheet();
+  showToast('"' + name + '" added to your library');
+}
+function deleteCustomEx(name, event) {
+  event.stopPropagation();
+  userExercises = userExercises.filter(e => e.name !== name);
+  saveState();
+  refreshExerciseSub();
+  renderExercises(document.getElementById('ex-search')?.value || '');
+  showToast('Exercise removed');
 }
 
 // ─────────────────────────────────────────
@@ -4456,6 +4549,15 @@ function toggleLast(ei) {
   renderWkt();
 }
 
+function fmtLastInline(last) {
+  if (!last || !last.sets || !last.sets.length) return null;
+  const sets = last.sets.filter(s => s.reps > 0);
+  if (!sets.length) return null;
+  if (sets.length <= 4) return 'Last: ' + sets.map(s => s.w + '×' + s.reps).join(' · ');
+  const top = sets.reduce((a, b) => b.w > a.w ? b : a);
+  return `Last: ${sets.length} sets · top ${top.w}×${top.reps}`;
+}
+
 function renderWkt() {
   updateWktStats();
   let html = '';
@@ -4465,11 +4567,13 @@ function renderWkt() {
     const workingSets = ex.sets.filter(s => !s.warmup);
     const done = workingSets.filter(s => s.h[CUR] !== null).length;
     const total = workingSets.length;
+    const lastHint = fmtLastInline(ex.last);
     html += `<div class="ex-card">
       <div class="ex-hd" onclick="toggleEx(${ei})">
         <div>
           <div class="ex-hd-name">${ex.name}${ex.hasPR ? '<span class="pr-ex-badge">PR</span>' : ''}${ex.supersetId ? '<span class="pr-ex-badge" style="background:var(--accent-dim);color:var(--accent-dark);border-color:var(--accent-border)">⇄ SS</span>' : ''}</div>
           <div class="ex-hd-sub">${ex.muscle}</div>
+          ${lastHint ? `<div class="ex-last-inline">${lastHint}</div>` : ''}
         </div>
         <div class="ex-hd-right">
           ${ex.isNew ? '<span class="new-ex-badge">New</span>' : ''}
@@ -4980,6 +5084,7 @@ let nextRoutineId = 3;
 let viewingRoutineId = null;
 let logEntries = [];
 let bodyweightLog = [];
+let userExercises = []; // user-created custom exercises
 let userProfile = { name: '', goal: '', bodyweight: null, weightUnit: 'lbs', setupComplete: false };
 let friendsList = [];
 let friendsReactions = {};
@@ -6501,6 +6606,7 @@ function saveState() {
     localStorage.setItem(getStorageKey('nextId'), String(nextRoutineId));
     localStorage.setItem(getStorageKey('log'), JSON.stringify(logEntries));
     localStorage.setItem(getStorageKey('profile'), JSON.stringify(userProfile));
+    localStorage.setItem(getStorageKey('custom_ex'), JSON.stringify(userExercises));
     localStorage.setItem(getStorageKey('bwlog'), JSON.stringify(bodyweightLog));
     localStorage.setItem(getStorageKey('friends'), JSON.stringify({list:friendsList,reactions:friendsReactions,sent:friendsSent,received:friendsReceived,activities:userActivities,sharedSent:sharedRoutinesSent,sharedRec:sharedRoutinesReceived,seededShared:sharedSeeded}));
     localStorage.setItem(getStorageKey('nutlog'), JSON.stringify(nutritionLog));
@@ -6521,6 +6627,8 @@ function loadState() {
     if (n) nextRoutineId = parseInt(n);
     if (l) logEntries = JSON.parse(l);
     if (p) userProfile = JSON.parse(p);
+    const cx = localStorage.getItem(getStorageKey('custom_ex'));
+    if (cx) userExercises = JSON.parse(cx);
     if (b) bodyweightLog = JSON.parse(b);
     if (f) { const fd = JSON.parse(f); friendsList=fd.list||[]; friendsReactions=fd.reactions||{}; friendsSent=fd.sent||[]; friendsReceived=fd.received||[]; userActivities=fd.activities||[]; sharedRoutinesSent=fd.sharedSent||[]; sharedRoutinesReceived=fd.sharedRec||[]; sharedSeeded=fd.seededShared||false; }
     if (nl) nutritionLog = JSON.parse(nl);
@@ -6607,6 +6715,20 @@ let nrSelDays = null;
 let nrSelGoal = null;
 let nrWorkoutDays   = [];
 let nrWorkoutLabels = []; // only used for Custom split
+let nrWorkoutTypes  = []; // only used for Custom split — parallel to nrWorkoutLabels
+
+const NR_WORKOUT_TYPES = [
+  {id:'push',    abbr:'PSH', label:'Push',      bg:'rgba(239,83,80,.15)',   fg:'#ef5350'},
+  {id:'pull',    abbr:'PLL', label:'Pull',      bg:'rgba(66,133,244,.15)',  fg:'#4285f4'},
+  {id:'legs',    abbr:'LEG', label:'Legs',      bg:'rgba(46,204,113,.15)',  fg:'#2ecc71'},
+  {id:'upper',   abbr:'UPR', label:'Upper',     bg:'rgba(251,140,0,.15)',   fg:'#ff8f00'},
+  {id:'lower',   abbr:'LWR', label:'Lower',     bg:'rgba(171,71,188,.15)',  fg:'#ab47bc'},
+  {id:'full',    abbr:'FUL', label:'Full Body', bg:'rgba(251,188,4,.15)',   fg:'#f1c40f'},
+  {id:'cardio',  abbr:'CRD', label:'Cardio',    bg:'rgba(0,188,212,.15)',   fg:'#00bcd4'},
+  {id:'core',    abbr:'COR', label:'Core',      bg:'rgba(255,138,101,.15)', fg:'#ff8a65'},
+  {id:'arms',    abbr:'ARM', label:'Arms',      bg:'rgba(102,187,106,.15)', fg:'#66bb6a'},
+  {id:'general', abbr:'GEN', label:'General',   bg:'rgba(120,120,120,.12)', fg:'#888888'},
+];
 
 const NR_CUSTOM_COLORS = [
   {bg:'rgba(239,83,80,.15)',  fg:'#ef5350'},
@@ -6666,7 +6788,7 @@ const NR_WK_MUSCLES = {
 };
 
 function openNewRoutineSheet() {
-  nrStep = 1; nrSelSplit = null; nrSelDays = null; nrSelGoal = null; nrWorkoutDays = []; nrWorkoutLabels = [];
+  nrStep = 1; nrSelSplit = null; nrSelDays = null; nrSelGoal = null; nrWorkoutDays = []; nrWorkoutLabels = []; nrWorkoutTypes = [];
   buildSplitList();
   showNrStep(1);
   document.getElementById('nr-overlay').classList.add('show');
@@ -6722,7 +6844,10 @@ function prefillStep2() {
   const labels = isCustom
     ? ['Push', 'Pull', 'Legs']
     : buildDayLabels(t.name, count);
-  if (isCustom) nrWorkoutLabels = [...labels];
+  if (isCustom) {
+    nrWorkoutLabels = [...labels];
+    nrWorkoutTypes  = labels.map((_, i) => NR_WORKOUT_TYPES[i % NR_WORKOUT_TYPES.length].id);
+  }
   const defaultWds = WEEKDAY_MAPS[count] || Array.from({length: count}, (_,i) => NR_WK_DAYS[i] || 'Mon');
   nrWorkoutDays = labels.map((_, i) => defaultWds[i] || 'Rest');
   nrRenderWorkoutCards(labels);
@@ -6732,15 +6857,22 @@ function prefillStep2() {
 function nrRenderWorkoutCards(labels) {
   const isCustom = SPLIT_TEMPLATES[nrSelSplit]?.name === 'Custom';
   const cards = labels.map((label, i) => {
-    const wc = isCustom
-      ? NR_CUSTOM_COLORS[i % NR_CUSTOM_COLORS.length]
-      : (NR_WK_COLORS[label] || {abbr: label.slice(0,3).toUpperCase(), bg:'rgba(120,120,120,.12)', fg:'#888'});
-    const abbr = isCustom
-      ? (label.trim().slice(0,3).toUpperCase() || 'W' + (i+1))
-      : (NR_WK_COLORS[label]?.abbr || label.slice(0,3).toUpperCase());
+    let wc, abbr;
+    if (isCustom) {
+      const typeId = nrWorkoutTypes[i] || NR_WORKOUT_TYPES[i % NR_WORKOUT_TYPES.length].id;
+      const t = NR_WORKOUT_TYPES.find(t => t.id === typeId) || NR_WORKOUT_TYPES[0];
+      wc = {bg: t.bg, fg: t.fg};
+      abbr = t.abbr;
+    } else {
+      wc = NR_WK_COLORS[label] || {abbr: label.slice(0,3).toUpperCase(), bg:'rgba(120,120,120,.12)', fg:'#888'};
+      abbr = NR_WK_COLORS[label]?.abbr || label.slice(0,3).toUpperCase();
+    }
     const muscles = NR_WK_MUSCLES[label] || 'Configure exercises after creating';
     const day = nrWorkoutDays[i] || 'Rest';
     const cls = day === 'Rest' ? 'nr-ds-rest' : 'nr-ds-set';
+    const badge = isCustom
+      ? `<div class="nr-wbadge nr-type-pick" id="nr-wbadge-${i}" style="background:${wc.bg};color:${wc.fg}" onclick="nrCycleType(${i})" title="Tap to change type">${abbr}</div>`
+      : `<div class="nr-wbadge" id="nr-wbadge-${i}" style="background:${wc.bg};color:${wc.fg}">${abbr}</div>`;
     const meta = isCustom
       ? `<input class="nr-wlabel-input" type="text" value="${label}" maxlength="20"
                placeholder="Name this workout…"
@@ -6752,7 +6884,7 @@ function nrRenderWorkoutCards(labels) {
       : '';
     return `
       <div class="nr-wcard" id="nr-wcard-${i}">
-        <div class="nr-wbadge" id="nr-wbadge-${i}" style="background:${wc.bg};color:${wc.fg}">${abbr}</div>
+        ${badge}
         <div class="nr-wmeta">${meta}</div>
         <div class="nr-daysel ${cls}" id="nr-ds-${i}" onclick="nrCycleDay(${i})">
           <div class="nr-ds-eye">Day</div>
@@ -6771,10 +6903,22 @@ function nrRenderWorkoutCards(labels) {
   nrCheckConflicts();
 }
 
+function nrCycleType(i) {
+  const cur = nrWorkoutTypes[i] || NR_WORKOUT_TYPES[0].id;
+  const idx = NR_WORKOUT_TYPES.findIndex(t => t.id === cur);
+  const next = NR_WORKOUT_TYPES[(idx + 1) % NR_WORKOUT_TYPES.length];
+  nrWorkoutTypes[i] = next.id;
+  const badge = document.getElementById('nr-wbadge-' + i);
+  if (badge) {
+    badge.textContent = next.abbr;
+    badge.style.background = next.bg;
+    badge.style.color = next.fg;
+  }
+}
+
 function nrUpdateLabel(i, val) {
   nrWorkoutLabels[i] = val.trim() || ('Workout ' + (i + 1));
-  const badge = document.getElementById('nr-wbadge-' + i);
-  if (badge) badge.textContent = (val.trim().slice(0, 3) || 'W' + (i + 1)).toUpperCase();
+  // badge now shows the type, not the name — nothing to update here
 }
 
 function nrAddWorkoutSlot() {
@@ -6782,11 +6926,10 @@ function nrAddWorkoutSlot() {
   const used = new Set(nrWorkoutDays.filter(d => d !== 'Rest'));
   const nextWd = WKDAYS.find(d => !used.has(d)) || 'Mon';
   const idx = nrWorkoutLabels.length;
-  const defaultName = 'Workout ' + (idx + 1);
-  nrWorkoutLabels.push(defaultName);
+  nrWorkoutLabels.push('Workout ' + (idx + 1));
   nrWorkoutDays.push(nextWd);
+  nrWorkoutTypes.push(NR_WORKOUT_TYPES[idx % NR_WORKOUT_TYPES.length].id);
   nrRenderWorkoutCards(nrWorkoutLabels);
-  // Focus the new label input
   setTimeout(() => {
     const inp = document.querySelector(`#nr-wcard-${idx} .nr-wlabel-input`);
     if (inp) { inp.select(); inp.focus(); }
@@ -6797,6 +6940,7 @@ function nrRemoveWorkoutSlot(i) {
   if (nrWorkoutLabels.length <= 1) { showToast('Need at least 1 workout'); return; }
   nrWorkoutLabels.splice(i, 1);
   nrWorkoutDays.splice(i, 1);
+  nrWorkoutTypes.splice(i, 1);
   nrRenderWorkoutCards(nrWorkoutLabels);
   updateCreateBtn();
 }
