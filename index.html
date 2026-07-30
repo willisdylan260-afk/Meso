@@ -2376,6 +2376,7 @@ const EXERCISES = [
 ];
 const MUSCLE_FILTERS = ['All','Chest','Back','Legs','Shoulders','Arms','Core'];
 let activeFilter = 'All';
+let userExercises = []; // populated from localStorage in loadState()
 
 (function buildSearch() {
   document.getElementById('filter-chips').innerHTML = MUSCLE_FILTERS.map(f =>
@@ -5084,7 +5085,6 @@ let nextRoutineId = 3;
 let viewingRoutineId = null;
 let logEntries = [];
 let bodyweightLog = [];
-let userExercises = []; // user-created custom exercises
 let userProfile = { name: '', goal: '', bodyweight: null, weightUnit: 'lbs', setupComplete: false };
 let friendsList = [];
 let friendsReactions = {};
