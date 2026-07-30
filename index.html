@@ -2378,6 +2378,49 @@ const MUSCLE_FILTERS = ['All','Chest','Back','Legs','Shoulders','Arms','Core'];
 let activeFilter = 'All';
 let userExercises = []; // populated from localStorage in loadState()
 
+// ── FUZZY SEARCH HELPERS ──
+const SEARCH_ALIASES = {
+  'rdl':   'romanian',
+  'ohp':   'overhead',
+  'bp':    'bench press',
+  'cgbp':  'close grip',
+  'db':    'dumbbell',
+  'bb':    'barbell',
+  'bw':    'bodyweight',
+  'tri':   'tricep',
+  'tris':  'tricep',
+  'bis':   'bicep',
+  'bi':    'bicep',
+  'cal':   'calf',
+  'hams':  'hamstring',
+  'ham':   'hamstring',
+  'glutes':'glute',
+  'quads': 'quad',
+  'lats':  'lat',
+  'delt':  'shoulder',
+  'delts': 'shoulder',
+  'skulls':'skull',
+  'flies': 'fly',
+  'flyes': 'fly',
+  'flye':  'fly',
+  'pullup':'pull-up',
+  'chinup':'chin-up',
+  'pushup':'push-up',
+  'situp': 'sit-up',
+};
+function matchesSearch(e, q) {
+  if (!q) return true;
+  let nq = q.toLowerCase().trim();
+  // Expand known abbreviations (whole-word only)
+  Object.entries(SEARCH_ALIASES).forEach(([k, v]) => {
+    nq = nq.replace(new RegExp('(^|\\s)' + k + '(\\s|$)', 'g'), '$1' + v + '$2');
+  });
+  // Normalise haystack: name + muscle + tags, collapse punctuation to spaces
+  const hay = [e.name, e.muscle, e.tags || ''].join(' ').toLowerCase().replace(/[-/·]/g, ' ');
+  // Every space-separated token must appear somewhere as a substring
+  return nq.split(/\s+/).filter(Boolean).every(tok => hay.includes(tok));
+}
+
 (function buildSearch() {
   document.getElementById('filter-chips').innerHTML = MUSCLE_FILTERS.map(f =>
     `<button type="button" class="f-chip${f === 'All' ? ' active' : ''}" onclick="setFilter(this,'${f}')">${f}</button>`
@@ -2402,8 +2445,7 @@ function filterEx(q) { renderExercises(q); }
 function renderExercises(q = '') {
   const allEx = [...EXERCISES, ...userExercises.map(e => ({...e, custom:true}))];
   const list = allEx.filter(e =>
-    (activeFilter === 'All' || e.muscle === activeFilter) &&
-    (!q || e.name.toLowerCase().includes(q.toLowerCase()) || e.muscle.toLowerCase().includes(q.toLowerCase()))
+    (activeFilter === 'All' || e.muscle === activeFilter) && matchesSearch(e, q)
   );
   document.getElementById('ex-results').innerHTML = list.length
     ? list.map(e => `
@@ -3929,9 +3971,9 @@ function setWktAddFilter(el, f) {
   renderWktAddList(document.getElementById('wkt-add-search').value);
 }
 function renderWktAddList(q='') {
-  const list = EXERCISES.filter(e =>
-    (wktAddFilter==='All' || e.muscle===wktAddFilter) &&
-    (!q || e.name.toLowerCase().includes(q.toLowerCase()) || e.muscle.toLowerCase().includes(q.toLowerCase()))
+  const allEx = [...EXERCISES, ...userExercises];
+  const list = allEx.filter(e =>
+    (wktAddFilter==='All' || e.muscle===wktAddFilter) && matchesSearch(e, q)
   );
   document.getElementById('wkt-add-list').innerHTML = list.length
     ? list.map(e=>`
@@ -5998,9 +6040,9 @@ function setSwapFilter(el, f) {
 function filterSwap(q) { renderSwapList(q); }
 
 function renderSwapList(q = '') {
-  const list = EXERCISES.filter(e =>
-    (swapFilterActive === 'All' || e.muscle === swapFilterActive) &&
-    (!q || e.name.toLowerCase().includes(q.toLowerCase()) || e.muscle.toLowerCase().includes(q.toLowerCase()))
+  const allEx = [...EXERCISES, ...userExercises];
+  const list = allEx.filter(e =>
+    (swapFilterActive === 'All' || e.muscle === swapFilterActive) && matchesSearch(e, q)
   );
   const actionLabel = swapCtx && swapCtx.mode === 'add' ? 'Add' : 'Swap';
   const actionIcon  = swapCtx && swapCtx.mode === 'add' ? 'ti-plus' : 'ti-repeat';
