@@ -642,7 +642,7 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
 .rd-ex-sets{font-size:11px;color:var(--text4)}
 .rd-swap-btn{background:var(--card2);border:0.5px solid var(--border);border-radius:8px;padding:5px 9px;font-size:11px;color:var(--text4);cursor:pointer;display:flex;align-items:center;gap:4px;white-space:nowrap;flex-shrink:0;font-family:inherit;transition:all .15s}
 .rd-swap-btn:hover{border-color:var(--accent-border);color:var(--accent)}
-.rd-ex-grip{color:var(--text6);font-size:15px;cursor:grab;flex-shrink:0;transition:color .15s}
+.rd-ex-grip{color:var(--text6);font-size:15px;cursor:grab;flex-shrink:0;transition:color .15s;touch-action:none}
 .rd-ex-grip:hover{color:var(--text4)}
 .rd-ex-grip:active{cursor:grabbing}
 .rd-ex-row.ex-dragging{opacity:.3}
@@ -5982,7 +5982,7 @@ function renderDayList(r) {
            ondragstart="dragStart(event,${i})" ondragover="dragOver(event,${i})"
            ondragleave="dragLeave(event,${i})" ondrop="dropDay(event,${i})">
         <div class="rd-day-hd" onclick="toggleDayBody(${i})">
-          <i class="ti ti-grip-vertical rd-drag-handle"></i>
+          <i class="ti ti-grip-vertical rd-drag-handle" ontouchstart="dayTouchStart(event,${i})"></i>
           ${wd ? `<div class="rd-wdchip" onclick="event.stopPropagation();rdCycleWeekday(${i})" title="Tap to change day">${wd}</div>` : ''}
           <div class="rd-day-name" onclick="event.stopPropagation();rdRenameDay(${i})" title="Tap to rename">${d.label}</div>
           <div class="rd-day-count">${exs.length} ex</div>
@@ -5996,7 +5996,7 @@ function renderDayList(r) {
                  ondragover="exDragOver(event,${i},${ei})"
                  ondragleave="exDragLeave(event,${i},${ei})"
                  ondrop="exDrop(event,${i},${ei})">
-              <i class="ti ti-grip-vertical rd-ex-grip"></i>
+              <i class="ti ti-grip-vertical rd-ex-grip" ontouchstart="exTouchStart(event,${i},${ei})"></i>
               <div class="rd-ex-dot"></div>
               <div class="rd-ex-name">${e.name}</div>
               <div class="rd-ex-sets">${e.sets}×${e.reps}</div>
@@ -6089,6 +6089,107 @@ function exDrop(e, dayIdx, exIdx) {
   exDragDayIdx = null; exDragExIdx = null;
   saveState();
   renderDayList(r);
+}
+
+// ── TOUCH DRAG AND DROP (iOS / mobile) ──
+// HTML5 drag events don't fire on touch screens; this mirrors the same
+// reorder logic using touchstart/touchmove/touchend with a floating ghost.
+let tDrag = null;
+
+function dayTouchStart(e, i) {
+  e.preventDefault();
+  e.stopPropagation();
+  const card = document.getElementById('rdd-' + i);
+  const rect = card.getBoundingClientRect();
+  const t = e.touches[0];
+  const ghost = card.cloneNode(true);
+  ghost.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;z-index:9999;pointer-events:none;opacity:.88;transform:scale(1.02);box-shadow:0 8px 32px rgba(0,0,0,.45);border-radius:14px;transition:none`;
+  document.body.appendChild(ghost);
+  card.style.opacity = '0.25';
+  tDrag = { type:'day', srcIdx:i, ghost, origEl:card, offX:t.clientX-rect.left, offY:t.clientY-rect.top, targetIdx:null };
+  document.addEventListener('touchmove', _onTDragMove, { passive:false });
+  document.addEventListener('touchend',  _onTDragEnd,  { passive:false });
+}
+
+function exTouchStart(e, dayIdx, exIdx) {
+  e.preventDefault();
+  e.stopPropagation();
+  const row = document.getElementById(`rdex-${dayIdx}-${exIdx}`);
+  const rect = row.getBoundingClientRect();
+  const t = e.touches[0];
+  const ghost = row.cloneNode(true);
+  ghost.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;z-index:9999;pointer-events:none;opacity:.88;transform:scale(1.02);box-shadow:0 8px 32px rgba(0,0,0,.45);border-radius:10px;transition:none`;
+  document.body.appendChild(ghost);
+  row.style.opacity = '0.25';
+  tDrag = { type:'ex', srcDayIdx:dayIdx, srcExIdx:exIdx, ghost, origEl:row, offX:t.clientX-rect.left, offY:t.clientY-rect.top, targetDayIdx:null, targetExIdx:null };
+  document.addEventListener('touchmove', _onTDragMove, { passive:false });
+  document.addEventListener('touchend',  _onTDragEnd,  { passive:false });
+}
+
+function _onTDragMove(e) {
+  if (!tDrag) return;
+  e.preventDefault();
+  const t = e.touches[0];
+  tDrag.ghost.style.left = (t.clientX - tDrag.offX) + 'px';
+  tDrag.ghost.style.top  = (t.clientY - tDrag.offY) + 'px';
+
+  // Hide ghost briefly so elementFromPoint sees through it
+  tDrag.ghost.style.visibility = 'hidden';
+  const under = document.elementFromPoint(t.clientX, t.clientY);
+  tDrag.ghost.style.visibility = '';
+
+  document.querySelectorAll('.drag-over, .ex-drag-over').forEach(el => el.classList.remove('drag-over', 'ex-drag-over'));
+
+  if (tDrag.type === 'day') {
+    const card = under?.closest('.rd-day-card');
+    if (card && card !== tDrag.origEl) {
+      const ti = parseInt(card.id.replace('rdd-', ''));
+      if (!isNaN(ti)) { card.classList.add('drag-over'); tDrag.targetIdx = ti; }
+    }
+  } else {
+    const row = under?.closest('.rd-ex-row');
+    if (row && row !== tDrag.origEl) {
+      const parts = row.id.replace('rdex-', '').split('-');
+      const tdi = parseInt(parts[0]), tei = parseInt(parts[1]);
+      if (tdi === tDrag.srcDayIdx && !isNaN(tei)) {
+        row.classList.add('ex-drag-over');
+        tDrag.targetDayIdx = tdi;
+        tDrag.targetExIdx  = tei;
+      }
+    }
+  }
+}
+
+function _onTDragEnd() {
+  if (!tDrag) return;
+  document.removeEventListener('touchmove', _onTDragMove);
+  document.removeEventListener('touchend',  _onTDragEnd);
+
+  tDrag.ghost.remove();
+  tDrag.origEl.style.opacity = '';
+  document.querySelectorAll('.rd-day-card').forEach(c => c.classList.remove('drag-over', 'dragging'));
+  document.querySelectorAll('.rd-ex-row').forEach(r => r.classList.remove('ex-drag-over', 'ex-dragging'));
+
+  if (tDrag.type === 'day' && tDrag.targetIdx !== null && tDrag.targetIdx !== tDrag.srcIdx) {
+    const r = userRoutines.find(r => r.id === viewingRoutineId);
+    const savedWds = r.days.map(d => d.weekday || '');
+    const moved = r.days.splice(tDrag.srcIdx, 1)[0];
+    r.days.splice(tDrag.targetIdx, 0, moved);
+    r.days.forEach((d, idx) => { d.weekday = savedWds[idx]; });
+    saveState();
+    renderDayList(r);
+    renderRoutineList();
+    renderTodayCard();
+    renderLogActiveCard();
+  } else if (tDrag.type === 'ex' && tDrag.targetExIdx !== null && tDrag.targetExIdx !== tDrag.srcExIdx) {
+    const r = userRoutines.find(r => r.id === viewingRoutineId);
+    const exs = r.days[tDrag.srcDayIdx].exercises;
+    const moved = exs.splice(tDrag.srcExIdx, 1)[0];
+    exs.splice(tDrag.targetExIdx, 0, moved);
+    saveState();
+    renderDayList(r);
+  }
+  tDrag = null;
 }
 
 // ── ACTIVE ROUTINE TOGGLE ──
