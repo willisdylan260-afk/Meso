@@ -853,6 +853,34 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
 .nutr-food-meta{font-size:11px;color:var(--text4);margin-top:1px}
 .nutr-food-del{background:transparent;border:none;color:var(--text5);font-size:16px;cursor:pointer;padding:4px 6px;flex-shrink:0}
 .nutr-food-del:active{color:var(--red)}
+
+/* ── COACH MODE ── */
+/* Progress tab profile pill */
+.prog-profile-pill{background:var(--accent-dim);border:1px solid var(--accent-border);border-radius:20px;color:var(--accent);font-size:16px;font-weight:700;padding:4px 14px 4px 12px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;letter-spacing:-.01em;transition:background .15s}
+.prog-profile-pill:active{background:var(--accent-dark)}
+/* Client badge on routine card */
+.client-badge{font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:8px;background:rgba(66,133,244,.12);color:#4285f4;border:0.5px solid rgba(66,133,244,.25);flex-shrink:0}
+/* Owner selection cards (routine creation step 3) */
+.nr-owner-cards{display:flex;flex-direction:column;gap:10px}
+.nr-owner-card{background:var(--card);border:1.5px solid var(--border);border-radius:16px;padding:14px 16px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:all .15s}
+.nr-owner-card:active{transform:scale(.98)}
+.nr-owner-card.sel{background:#121f1c;border-color:var(--accent-dark)}
+.nr-owner-icon{width:40px;height:40px;border-radius:12px;background:var(--card2);border:0.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--text3);flex-shrink:0}
+.nr-owner-card.sel .nr-owner-icon{background:var(--accent-dim);border-color:var(--accent-border);color:var(--accent)}
+.nr-owner-body{flex:1;min-width:0}
+.nr-owner-title{font-size:14px;font-weight:600;color:var(--text2)}
+.nr-owner-card.sel .nr-owner-title{color:var(--accent)}
+.nr-owner-desc{font-size:11px;color:var(--text5);margin-top:2px;line-height:1.5}
+.nr-owner-check{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;color:transparent;flex-shrink:0;transition:all .15s}
+.nr-owner-card.sel .nr-owner-check{background:var(--accent-dark);border-color:var(--accent-dark);color:#fff}
+/* Active workout client banner */
+.wkt-client-banner{font-size:11px;font-weight:600;color:#4285f4;background:rgba(66,133,244,.08);border:0.5px solid rgba(66,133,244,.2);border-radius:8px;padding:4px 10px;margin-top:4px;display:inline-flex;align-items:center;gap:5px}
+/* Progress profile sheet items */
+.prog-profile-item{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:0.5px solid var(--border2);cursor:pointer}
+.prog-profile-item:last-child{border-bottom:none}
+.prog-profile-item-name{font-size:15px;font-weight:600;color:var(--text)}
+.prog-profile-item-sub{font-size:11px;color:var(--text4);margin-top:2px}
+.prog-profile-item-check{color:var(--accent);font-size:16px}
 </style>
 
 </head>
@@ -1131,7 +1159,15 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
     <!-- ── TAB: PROGRESS ── -->
     <div class="tab-content" id="tab-progress">
       <div class="tab-header">
-        <div class="tab-header-row"><div class="page-title">Progress</div></div>
+        <div class="tab-header-row">
+          <div class="page-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <button id="progress-profile-btn" class="prog-profile-pill" onclick="openProgressProfileSheet()">
+              <span id="progress-profile-name">—</span>
+              <i id="progress-profile-caret" class="ti ti-chevron-down" style="font-size:10px;display:none"></i>
+            </button>
+            <span>Progress</span>
+          </div>
+        </div>
         <div class="tab-sub" id="progress-sub">Build muscle goal</div>
       </div>
       <div style="padding:4px 14px 0">
@@ -1140,7 +1176,7 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
           <div id="goal-input-meso" style="display:none"></div>
           <div id="mesocycle-body"></div>
         </div>
-        <div class="prog-card">
+        <div class="prog-card" id="bw-progress-card">
           <div class="prog-card-title"><span>Bodyweight</span><div id="goal-chip-bw"></div></div>
           <div id="goal-input-bw" style="display:none"></div>
           <div id="bw-card-body"></div>
@@ -1666,6 +1702,34 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
         </div>
       </div>
 
+      <!-- Step 3: Owner selection -->
+      <div id="nr-step3" class="sheet-body" style="display:none">
+        <div class="nr-section-lbl">Who is this routine for?</div>
+        <div class="nr-owner-cards">
+          <div class="nr-owner-card sel" id="nr-own-self" onclick="pickNrOwner('self')">
+            <div class="nr-owner-icon"><i class="ti ti-user"></i></div>
+            <div class="nr-owner-body">
+              <div class="nr-owner-title">For You</div>
+              <div class="nr-owner-desc">Track your own training and progress</div>
+            </div>
+            <div class="nr-owner-check"><i class="ti ti-check"></i></div>
+          </div>
+          <div class="nr-owner-card" id="nr-own-client" onclick="pickNrOwner('client')">
+            <div class="nr-owner-icon"><i class="ti ti-users"></i></div>
+            <div class="nr-owner-body">
+              <div class="nr-owner-title">For Someone Else</div>
+              <div class="nr-owner-desc">Client or athlete — keeps their data separate from yours</div>
+            </div>
+            <div class="nr-owner-check"><i class="ti ti-check"></i></div>
+          </div>
+        </div>
+        <div id="nr-client-name-wrap" style="display:none;margin-top:16px">
+          <div class="nr-section-lbl">Client / Athlete name</div>
+          <input id="nr-client-name-input" class="nr-text-input" type="text" placeholder="e.g. John Smith" maxlength="40"
+                 oninput="nrClientName=this.value.trim();updateCreateBtn()">
+        </div>
+      </div>
+
       <!-- Footer -->
       <div class="sheet-footer" id="nr-footer">
         <div style="display:flex;gap:8px">
@@ -1674,6 +1738,18 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
         </div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- Progress profile selector sheet -->
+<div class="overlay" id="prog-profile-overlay" onclick="if(event.target===this)closeProgressProfileSheet()">
+  <div class="sheet" id="prog-profile-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-hd">
+      <div class="sheet-title">View progress for</div>
+      <button type="button" class="sheet-close" onclick="closeProgressProfileSheet()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="sheet-body" id="prog-profile-list"></div>
   </div>
 </div>
 
@@ -1771,6 +1847,7 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
       <div>
         <div class="wkt-title" id="wkt-title">Push Day A</div>
         <div class="wkt-elapsed" id="wkt-elapsed">0:00 elapsed</div>
+        <div class="wkt-client-banner" id="wkt-client-banner" style="display:none"></div>
       </div>
       <button type="button" style="background:var(--card);border:0.5px solid var(--border);border-radius:11px;color:var(--text4);font-size:12px;padding:7px 13px;cursor:pointer;font-family:inherit" onclick="goScreen('screen-app')"><i class="ti ti-arrow-left"></i> Back</button>
     </div>
@@ -2234,7 +2311,11 @@ function finishWorkout() {
         if (next) next.today = true;
       }
       renderRoutineList();
-      addLogEntry(pendingLogRoutine.dayLabel, r.name); // addLogEntry calls saveState()
+      if (r.owner === 'client') {
+        addClientLogEntry(r, pendingLogRoutine.dayLabel, r.name);
+      } else {
+        addLogEntry(pendingLogRoutine.dayLabel, r.name); // addLogEntry calls saveState()
+      }
     }
     pendingLogRoutine = null;
   } else {
@@ -2743,14 +2824,34 @@ function hasProfanity(text) {
 // PROGRESS CHARTS
 // ─────────────────────────────────────────
 let activeLift = '';
+let progressProfileId = null; // null = user's own data; routineId = client routine
+
+// ── Returns the log array to use for all progress-tab rendering ──
+function getProgressLogSource() {
+  if (progressProfileId === null) return logEntries;
+  const r = userRoutines.find(r => r.id === progressProfileId);
+  return r ? (r.clientLog || []) : logEntries;
+}
+// ── Returns the routine to use for mesocycle/goal context in progress tab ──
+function getProgressRoutine() {
+  if (progressProfileId === null) return userRoutines.find(r => r.active) || null;
+  return userRoutines.find(r => r.id === progressProfileId) || null;
+}
+// ── Returns the log source to use for PR detection during an active workout ──
+function getActiveRoutineLogSrc() {
+  if (!pendingLogRoutine) return logEntries;
+  const r = userRoutines.find(r => r.id === pendingLogRoutine.routineId);
+  return (r && r.owner === 'client') ? (r.clientLog || []) : logEntries;
+}
 
 function getWeeklyVolumeData() {
+  const src = getProgressLogSource();
   const result = [];
   const now = new Date(); now.setHours(23,59,59,999);
   for (let w = 3; w >= 0; w--) {
     const end = new Date(now); end.setDate(now.getDate() - w * 7);
     const start = new Date(end); start.setDate(end.getDate() - 6); start.setHours(0,0,0,0);
-    const vol = logEntries
+    const vol = src
       .filter(e => { const d = new Date(e.timestamp); return d >= start && d <= end; })
       .reduce((s, e) => s + (e.vol || 0), 0);
     const lbl = w === 0 ? 'This wk' : w === 1 ? 'Last wk' : w + 'w ago';
@@ -2760,13 +2861,15 @@ function getWeeklyVolumeData() {
 }
 
 function getExercisesInLog() {
+  const src = getProgressLogSource();
   const seen = new Set();
-  logEntries.forEach(e => { if (e.exercises) e.exercises.forEach(ex => seen.add(ex.name)); });
+  src.forEach(e => { if (e.exercises) e.exercises.forEach(ex => seen.add(ex.name)); });
   return [...seen];
 }
 
 function getStrengthData(exName) {
-  return logEntries
+  const src = getProgressLogSource();
+  return src
     .filter(e => e.exercises && e.exercises.some(ex => ex.name === exName))
     .map(e => {
       const ex = e.exercises.find(x => x.name === exName);
@@ -2777,8 +2880,9 @@ function getStrengthData(exName) {
 }
 
 function getAllTimePRs() {
+  const src = getProgressLogSource();
   const bests = {};
-  logEntries.forEach(e => {
+  src.forEach(e => {
     if (!e.exercises) return;
     e.exercises.forEach(ex => {
       ex.sets.forEach(s => {
@@ -2816,16 +2920,18 @@ function setGoal(type, value) {
 }
 
 function getMesocycleStats() {
-  const active = userRoutines.find(r => r.active);
-  if (!active) return { sessions: 0, volume: 0 };
-  const entries = logEntries.filter(e => e.routineId === active.id);
+  const r = getProgressRoutine();
+  if (!r) return { sessions: 0, volume: 0 };
+  const src = getProgressLogSource();
+  const entries = src.filter(e => e.routineId === r.id);
   return { sessions: entries.length, volume: Math.round(entries.reduce((s, e) => s + (e.vol || 0), 0)) };
 }
 
 function getMesocyclePRCount() {
-  const active = userRoutines.find(r => r.active);
-  if (!active) return 0;
-  return logEntries.filter(e => e.routineId === active.id).reduce((s, e) => s + (e.prs || 0), 0);
+  const r = getProgressRoutine();
+  if (!r) return 0;
+  const src = getProgressLogSource();
+  return src.filter(e => e.routineId === r.id).reduce((s, e) => s + (e.prs || 0), 0);
 }
 
 function renderGoalChip(containerId, type, labelText, metText) {
@@ -2841,6 +2947,14 @@ function renderGoalChip(containerId, type, labelText, metText) {
 }
 
 function checkAndRenderGoalChips() {
+  // Hide goal chips entirely when viewing a client profile
+  if (progressProfileId !== null) {
+    ['meso','bw','vol','str','pr'].forEach(t => {
+      const el = document.getElementById('goal-chip-' + t);
+      if (el) el.innerHTML = '';
+    });
+    return;
+  }
   const active = userRoutines.find(r => r.active);
   const types = ['meso','bw','vol','str','pr'];
   if (!active) { types.forEach(t => renderGoalChip('goal-chip-'+t, t, null, null)); return; }
@@ -3195,6 +3309,10 @@ function logBodyweight() {
 function renderBodyweightCard() {
   const el = document.getElementById('bw-card-body');
   if (!el) return;
+  // Bodyweight is personal — not shown for client profiles
+  const bwCard = document.getElementById('bw-progress-card');
+  if (bwCard) bwCard.style.display = progressProfileId !== null ? 'none' : '';
+  if (progressProfileId !== null) return;
   const inputRow = `
     <div style="display:flex;gap:8px;align-items:center;margin-top:12px">
       <input id="bw-input" type="number" placeholder="Log today's weight" min="50" max="700" step="0.1"
@@ -3251,16 +3369,17 @@ function renderBodyweightCard() {
 function renderMesocycleProgress() {
   const el = document.getElementById('mesocycle-body');
   if (!el) return;
-  const active = userRoutines.find(r => r.active);
+  const active = getProgressRoutine();
   if (!active) {
     el.innerHTML = '<div style="color:var(--text5);font-size:12px;text-align:center;padding:20px 0">No active routine.</div>';
     return;
   }
+  const src = getProgressLogSource();
   const curWeek  = active.week  || 1;
   const curMonth = active.month || 1;
 
   const weekData = [1,2,3,4].map(w => {
-    const entries = logEntries.filter(e => e.routineId === active.id && e.week === w);
+    const entries = src.filter(e => e.routineId === active.id && e.week === w);
     const vol = entries.reduce((s, e) => s + (e.vol || 0), 0);
     return { w, sessions: entries.length, vol: Math.round(vol), done: w < curWeek };
   });
@@ -3271,25 +3390,30 @@ function renderMesocycleProgress() {
     return               `<div class="meso-dot"></div>`;
   }).join('');
 
-  const goals  = getGoals();
+  const isClientView = progressProfileId !== null;
+  const goals  = isClientView ? {} : getGoals();
   const stats  = getMesocycleStats();
   let goalBarsHtml = '';
-  if (goals.sessions) {
+  if (!isClientView && goals.sessions) {
     const pct = Math.min(100, Math.round(stats.sessions / goals.sessions * 100));
     const met = stats.sessions >= goals.sessions;
     goalBarsHtml += `<div class="goal-bar-row"><span>Sessions</span><b>${stats.sessions} / ${goals.sessions}</b></div>
       <div class="goal-bar-track"><div class="goal-bar-fill${met?' met':''}" style="width:${pct}%"></div></div>`;
   }
-  if (goals.volume) {
+  if (!isClientView && goals.volume) {
     const pct = Math.min(100, Math.round(stats.volume / goals.volume * 100));
     const met = stats.volume >= goals.volume;
     goalBarsHtml += `<div class="goal-bar-row"><span>Volume</span><b>${fmtK(stats.volume)} / ${fmtK(goals.volume)} lbs</b></div>
       <div class="goal-bar-track"><div class="goal-bar-fill${met?' met':''}" style="width:${pct}%"></div></div>`;
   }
 
+  const routineLabel = isClientView
+    ? `${active.name} <span style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:8px;background:var(--card2);color:var(--text4);border:0.5px solid var(--border);margin-left:4px">Client</span>`
+    : active.name;
+
   el.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <div style="font-size:13px;font-weight:600;color:var(--text2)">${active.name}</div>
+      <div style="font-size:13px;font-weight:600;color:var(--text2)">${routineLabel}</div>
       <div style="font-size:11px;color:var(--text4)">Month ${curMonth}</div>
     </div>
     <div style="display:flex;align-items:center;gap:7px;margin-bottom:14px">
@@ -3331,6 +3455,7 @@ function saveAccountPhone() {
 }
 
 function drawCharts() {
+  updateProgressHeader();
   renderMesocycleProgress();
   renderBodyweightCard();
   const goals = getGoals();
@@ -3368,11 +3493,68 @@ function drawCharts() {
   checkGoalMet();
 }
 
+// ── Progress profile pill & sheet ────────────────────────────
+function updateProgressHeader() {
+  const btn  = document.getElementById('progress-profile-btn');
+  const name = document.getElementById('progress-profile-name');
+  const caret = document.getElementById('progress-profile-caret');
+  if (!btn || !name) return;
+  const clientRoutines = userRoutines.filter(r => r.owner === 'client');
+  const hasClients = clientRoutines.length > 0;
+  if (progressProfileId === null) {
+    const displayName = userProfile.name || (activeAccountEmail || '').split('@')[0] || 'My';
+    name.textContent = displayName + "'s";
+  } else {
+    const r = userRoutines.find(r => r.id === progressProfileId);
+    if (r) name.textContent = r.clientName + "'s";
+  }
+  if (caret) caret.style.display = hasClients ? '' : 'none';
+  btn.style.cursor = hasClients ? 'pointer' : 'default';
+}
+
+function openProgressProfileSheet() {
+  const clientRoutines = userRoutines.filter(r => r.owner === 'client');
+  if (!clientRoutines.length) return;
+  const listEl = document.getElementById('prog-profile-list');
+  if (!listEl) return;
+  const displayName = userProfile.name || (activeAccountEmail || '').split('@')[0] || 'Me';
+  const items = [
+    { id: null, label: displayName + "'s", sub: 'Your own training data' },
+    ...clientRoutines.map(r => ({
+      id: r.id,
+      label: r.clientName + "'s",
+      sub: r.name
+    }))
+  ];
+  listEl.innerHTML = items.map(item => `
+    <div class="prog-profile-item" onclick="setProgressProfile(${item.id === null ? 'null' : item.id})">
+      <div>
+        <div class="prog-profile-item-name">${item.label}</div>
+        <div class="prog-profile-item-sub">${item.sub}</div>
+      </div>
+      ${progressProfileId === item.id ? '<i class="ti ti-check prog-profile-item-check"></i>' : ''}
+    </div>`).join('');
+  document.getElementById('prog-profile-overlay').classList.add('show');
+}
+
+function closeProgressProfileSheet() {
+  document.getElementById('prog-profile-overlay').classList.remove('show');
+}
+
+function setProgressProfile(id) {
+  progressProfileId = (id === 'null' || id === null) ? null : Number(id);
+  closeProgressProfileSheet();
+  drawCharts();
+}
+
 function renderMonthlyHistory() {
   const el = document.getElementById('monthly-history-list');
   if (!el) return;
   const allMonths = [];
-  userRoutines.forEach(r => {
+  const routinesToShow = progressProfileId !== null
+    ? userRoutines.filter(r => r.id === progressProfileId)
+    : userRoutines;
+  routinesToShow.forEach(r => {
     (r.monthHistory || []).forEach(m => allMonths.push({routineName: r.name, ...m}));
   });
   if (!allMonths.length) {
@@ -4004,7 +4186,8 @@ function sendRoutineToFriend(rid, targetId, name) {
     fd.sharedRec.push({
       id:'share-'+Date.now(), from:activeAccountEmail, fromName,
       routineName:r.name,
-      routine:{name:r.name, daysPerWeek:r.daysPerWeek, goal:r.goal, week:1,
+      // clientLog and clientName intentionally stripped — shared routine arrives as a fresh 'self' routine
+      routine:{name:r.name, daysPerWeek:r.daysPerWeek, goal:r.goal, week:1, owner:'self', clientName:'', clientLog:[],
         days:r.days.map(d=>({label:d.label, exercises:(d.exercises||[]).map(e=>({name:e.name,sets:e.sets,reps:e.reps,muscle:e.muscle}))}))},
       at:Date.now()
     });
@@ -4018,7 +4201,8 @@ function sendRoutineToFriend(rid, targetId, name) {
 function copyRoutineLink(rid) {
   const r = userRoutines.find(x=>x.id===rid); if (!r) return;
   try {
-    const payload = JSON.stringify({name:r.name, daysPerWeek:r.daysPerWeek, goal:r.goal, days:r.days});
+    // Strip client-specific data before generating sharable link
+    const payload = JSON.stringify({name:r.name, daysPerWeek:r.daysPerWeek, goal:r.goal, owner:'self', clientName:'', clientLog:[], days:r.days});
     const b64 = btoa(unescape(encodeURIComponent(payload)));
     const url = location.href.split('#')[0]+'#routine='+b64;
     navigator.clipboard.writeText(url).then(()=>showToast('Link copied!')).catch(()=>showToast('Copy failed'));
@@ -4660,7 +4844,7 @@ function isPR(ei, si) {
   const curW = s.w, curR = s.h[CUR];
   const exName = wktData[ei].name;
   let prevBestW = 0, prevBestReps = 0;
-  logEntries.forEach(e => {
+  getActiveRoutineLogSrc().forEach(e => {
     if (!e.exercises) return;
     const ex = e.exercises.find(x => x.name === exName);
     if (!ex) return;
@@ -5570,8 +5754,8 @@ function renderRoutineList() {
       <div class="routine-card${r.active?' is-active':''}" onclick="openRoutineDetail(${r.id})">
         <div class="routine-top">
           <div>
-            <div class="routine-name">${r.name}</div>
-            <div class="routine-meta">${r.daysPerWeek} days/week · ${r.goal} · Week ${r.week}</div>
+            <div class="routine-name" style="display:flex;align-items:center;gap:7px">${r.name}${r.owner==='client'?`<span class="client-badge">Client</span>`:''}</div>
+            <div class="routine-meta">${r.daysPerWeek} days/week · ${r.owner==='client'&&r.clientName?r.clientName+' · ':''}${r.goal} · Week ${r.week}</div>
           </div>
           ${r.active ? '<span class="active-badge">Active</span>' : ''}
         </div>
@@ -5652,6 +5836,24 @@ function openRoutineDetail(id) {
   initDayExercises(r);
   document.getElementById('rd-title').textContent = r.name;
   document.getElementById('rd-meta').textContent = r.daysPerWeek + ' days/week · ' + r.goal;
+  // Show or hide client name badge in routine detail header
+  let rdClientEl = document.getElementById('rd-client-name-row');
+  if (!rdClientEl) {
+    rdClientEl = document.createElement('div');
+    rdClientEl.id = 'rd-client-name-row';
+    const metaEl = document.getElementById('rd-meta');
+    if (metaEl && metaEl.parentNode) metaEl.parentNode.insertBefore(rdClientEl, metaEl.nextSibling);
+  }
+  if (r.owner === 'client') {
+    rdClientEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+      <span style="font-size:12px;color:var(--text3)">Client:</span>
+      <span style="font-size:13px;font-weight:600;color:#4285f4">${r.clientName || '—'}</span>
+      <button type="button" onclick="renameClientName()" style="background:transparent;border:none;color:var(--text4);cursor:pointer;font-size:12px;padding:2px 6px"><i class="ti ti-pencil"></i> Rename</button>
+    </div>`;
+    rdClientEl.style.display = '';
+  } else {
+    rdClientEl.style.display = 'none';
+  }
   document.getElementById('rd-notes').value = r.notes || '';
   const activeTag = document.getElementById('rd-active-tag');
   const activeBtn = document.getElementById('rd-set-active-btn');
@@ -5666,6 +5868,18 @@ function openRoutineDetail(id) {
   }
   renderDayList(r);
   goScreen('screen-routine');
+}
+
+function renameClientName() {
+  const r = userRoutines.find(r => r.id === viewingRoutineId);
+  if (!r || r.owner !== 'client') return;
+  const newName = prompt('Client / Athlete name:', r.clientName || '');
+  if (newName === null) return; // cancelled
+  r.clientName = newName.trim();
+  saveState();
+  openRoutineDetail(r.id); // re-render detail to reflect new name
+  renderRoutineList();
+  showToast('Client name updated');
 }
 
 // ── DAY LIST (with drag-reorder + swap + inline edit) ──
@@ -5954,13 +6168,14 @@ function startRoutineDay(routineId, dayIdx) {
   initDayExercises(r);
   const day = r.days[dayIdx];
   if (!day) return;
+  const rLogSrc = r.owner === 'client' ? (r.clientLog || []) : logEntries;
   wktData = (day.exercises || []).map((e, i) => {
-    const last = getLastSession(e.name);
+    const last = getLastSession(e.name, rLogSrc);
     const sets = Array.from({length: e.sets}, (_, si) => {
       const lastW = last && last.sets[si] ? last.sets[si].w : (e.w || 0);
       const h = [null, null, null, null];
       for (let w = 0; w < CUR; w++) {
-        const entry = logEntries.find(le =>
+        const entry = rLogSrc.find(le =>
           le.routineId === r.id && le.dayLabel === day.label && le.week === w + 1 &&
           le.exercises && le.exercises.some(x => x.name === e.name)
         );
@@ -5975,13 +6190,21 @@ function startRoutineDay(routineId, dayIdx) {
   });
   const wktTitle = document.getElementById('wkt-title');
   if (wktTitle) wktTitle.textContent = day.label + (r.week > 1 ? ' — Week ' + r.week : '');
+  const banner = document.getElementById('wkt-client-banner');
+  if (banner) {
+    if (r.owner === 'client' && r.clientName) {
+      banner.innerHTML = `<i class="ti ti-users" style="font-size:11px"></i> Tracking for ${r.clientName}`;
+      banner.style.display = '';
+    } else { banner.style.display = 'none'; }
+  }
   pendingLogRoutine = { routineId: r.id, dayLabel: day.label, week: CUR + 1 };
   openMoreMenuEi = null; dropPickModeEi = null; supersetPickEi = null;
   goWorkout();
 }
-function getLastSession(exerciseName) {
-  for (let i = logEntries.length - 1; i >= 0; i--) {
-    const entry = logEntries[i];
+function getLastSession(exerciseName, logSrc) {
+  const src = logSrc || logEntries;
+  for (let i = src.length - 1; i >= 0; i--) {
+    const entry = src[i];
     if (!entry.exercises) continue;
     const ex = entry.exercises.find(x => x.name === exerciseName);
     if (ex && ex.sets.length) return ex;
@@ -5994,14 +6217,15 @@ function loadRoutineWorkout(r) {
   initDayExercises(r);
   const todayDay = getActiveDay(r);
   const exs = todayDay.exercises;
+  const rLogSrc = r.owner === 'client' ? (r.clientLog || []) : logEntries;
   wktData = exs.map((e, i) => {
-    const last = getLastSession(e.name);
+    const last = getLastSession(e.name, rLogSrc);
     const sets = Array.from({length: e.sets}, (_, si) => {
       const lastW = last && last.sets[si] ? last.sets[si].w : (e.w || 0);
       // hydrate previous week columns from log history
       const h = [null, null, null, null];
       for (let w = 0; w < CUR; w++) {
-        const entry = logEntries.find(le =>
+        const entry = rLogSrc.find(le =>
           le.routineId === r.id && le.dayLabel === todayDay.label && le.week === w + 1 &&
           le.exercises && le.exercises.some(x => x.name === e.name)
         );
@@ -6016,6 +6240,13 @@ function loadRoutineWorkout(r) {
   });
   const wktTitle = document.getElementById('wkt-title');
   if (wktTitle) wktTitle.textContent = todayDay.label + (r.week > 1 ? ' — Week ' + r.week : '');
+  const banner = document.getElementById('wkt-client-banner');
+  if (banner) {
+    if (r.owner === 'client' && r.clientName) {
+      banner.innerHTML = `<i class="ti ti-users" style="font-size:11px"></i> Tracking for ${r.clientName}`;
+      banner.style.display = '';
+    } else { banner.style.display = 'none'; }
+  }
   pendingLogRoutine = { routineId: r.id, dayLabel: todayDay.label, week: CUR + 1 };
   goWorkout();
 }
@@ -6052,6 +6283,38 @@ function addLogEntry(dayLabel, routineName) {
   renderLogStats();
   buildHeatmap();
   renderMesocycleProgress();
+}
+
+// Saves a completed session into the client routine's own log (never touches logEntries)
+function addClientLogEntry(r, dayLabel, routineName) {
+  clearActiveWorkout();
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+  const {vol, done, total, prs} = getWktStats();
+  const week = pendingLogRoutine ? pendingLogRoutine.week : (CUR + 1);
+  if (!r.clientLog) r.clientLog = [];
+  r.clientLog.push({
+    id: Date.now(),
+    timestamp: now.toISOString(),
+    date: dateStr,
+    dayLabel,
+    routineName,
+    routineId: r.id,
+    week,
+    vol, done, total, prs,
+    exercises: wktData.map(ex => ({
+      name: ex.name,
+      muscle: ex.muscle,
+      sets: ex.sets.flatMap(s => {
+        const rows = [];
+        if (s.h[CUR] !== null) rows.push({w:s.w, reps:s.h[CUR], ...(s.warmup ? {warmup:true} : {})});
+        if (s.drop && s.drop.h[CUR] !== null) rows.push({w:s.drop.w, reps:s.drop.h[CUR], drop:true});
+        return rows;
+      })
+    })).filter(ex => ex.sets.length > 0)
+  });
+  saveState();
+  renderRoutineList();
 }
 
 function switchLogView(view) {
@@ -6810,6 +7073,12 @@ function loadState() {
     const f = localStorage.getItem(getStorageKey('friends'));
     const nl = localStorage.getItem(getStorageKey('nutlog'));
     if (r) userRoutines = JSON.parse(r);
+    // Migrate existing routines — add coach-mode fields if missing
+    userRoutines.forEach(rt => {
+      if (!rt.owner)      rt.owner      = 'self';
+      if (!rt.clientName) rt.clientName = '';
+      if (!rt.clientLog)  rt.clientLog  = [];
+    });
     if (n) nextRoutineId = parseInt(n);
     if (l) logEntries = JSON.parse(l);
     if (p) userProfile = JSON.parse(p);
@@ -6902,6 +7171,8 @@ let nrSelGoal = null;
 let nrWorkoutDays   = [];
 let nrWorkoutLabels = []; // only used for Custom split
 let nrWorkoutTypes  = []; // only used for Custom split — parallel to nrWorkoutLabels
+let nrOwner = 'self';      // 'self' | 'client'
+let nrClientName = '';     // only used when nrOwner === 'client'
 
 const NR_WORKOUT_TYPES = [
   {id:'push',    abbr:'PSH', label:'Push',      bg:'rgba(239,83,80,.15)',   fg:'#ef5350'},
@@ -6975,6 +7246,7 @@ const NR_WK_MUSCLES = {
 
 function openNewRoutineSheet() {
   nrStep = 1; nrSelSplit = null; nrSelDays = null; nrSelGoal = null; nrWorkoutDays = []; nrWorkoutLabels = []; nrWorkoutTypes = [];
+  nrOwner = 'self'; nrClientName = '';
   buildSplitList();
   showNrStep(1);
   document.getElementById('nr-overlay').classList.add('show');
@@ -7009,16 +7281,23 @@ function showNrStep(n) {
   nrStep = n;
   document.getElementById('nr-step1').style.display = n === 1 ? '' : 'none';
   document.getElementById('nr-step2').style.display = n === 2 ? '' : 'none';
-  document.getElementById('nr-sub').textContent = `Step ${n} of 2 — ${n === 1 ? 'Choose a split' : 'Configure your routine'}`;
+  document.getElementById('nr-step3').style.display = n === 3 ? '' : 'none';
+  const subLabels = {1:'Choose a split', 2:'Configure your routine', 3:'Who is this for?'};
+  document.getElementById('nr-sub').textContent = `Step ${n} of 3 — ${subLabels[n] || ''}`;
   document.getElementById('nr-back-btn').style.display = n > 1 ? 'flex' : 'none';
   const nextBtn = document.getElementById('nr-next-btn');
   if (n === 1) {
     nextBtn.textContent = 'Next →';
     nextBtn.disabled = nrSelSplit === null;
+  } else if (n === 2) {
+    nextBtn.textContent = 'Next →';
+    updateCreateBtn();
+    prefillStep2();
   } else {
     nextBtn.textContent = 'Create Routine';
     updateCreateBtn();
-    prefillStep2();
+    // Reset owner UI
+    pickNrOwner(nrOwner);
   }
 }
 
@@ -7179,11 +7458,28 @@ function nrCheckConflicts() {
 function nrNext() {
   if (nrStep === 1) {
     showNrStep(2);
+  } else if (nrStep === 2) {
+    showNrStep(3);
   } else {
     createRoutine();
   }
 }
-function nrBack() { showNrStep(1); }
+function nrBack() {
+  if (nrStep === 3) showNrStep(2);
+  else showNrStep(1);
+}
+
+function pickNrOwner(owner) {
+  nrOwner = owner;
+  const selfCard   = document.getElementById('nr-own-self');
+  const clientCard = document.getElementById('nr-own-client');
+  const nameWrap   = document.getElementById('nr-client-name-wrap');
+  if (selfCard)   selfCard.classList.toggle('sel',   owner === 'self');
+  if (clientCard) clientCard.classList.toggle('sel', owner === 'client');
+  if (nameWrap)   nameWrap.style.display = owner === 'client' ? '' : 'none';
+  updateCreateBtn();
+}
+
 
 function pickNrDays(btn, n) {
   document.querySelectorAll('.nr-day-btn').forEach(b => b.classList.remove('sel'));
@@ -7202,9 +7498,11 @@ function pickNrGoal(btn, g) {
 function updateCreateBtn() {
   const name = (document.getElementById('nr-name-input') || {}).value || '';
   const hasDay = nrWorkoutDays.some(d => d !== 'Rest');
-  document.getElementById('nr-next-btn').disabled = nrStep === 1
-    ? nrSelSplit === null
-    : !(name.trim() && hasDay);
+  let disabled;
+  if (nrStep === 1)      disabled = nrSelSplit === null;
+  else if (nrStep === 2) disabled = !(name.trim() && hasDay);
+  else                   disabled = nrOwner === 'client' && !nrClientName.trim();
+  document.getElementById('nr-next-btn').disabled = disabled;
 }
 
 function updatePreview() {
@@ -7247,6 +7545,7 @@ function createRoutine() {
     id: nextRoutineId++,
     name, splitType: t.name, daysPerWeek: activePairs.length, goal,
     week: 1, month: 1, monthStartedAt: new Date().toISOString(), monthHistory: [], active: false, notes: '',
+    owner: nrOwner, clientName: nrOwner === 'client' ? nrClientName.trim() : '', clientLog: [],
     days: activePairs.map((p, i) => ({label: p.label, weekday: p.weekday, done: false, today: i === 0}))
   };
   initDayExercises(newRoutine);
