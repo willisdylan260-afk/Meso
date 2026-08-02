@@ -12,8 +12,9 @@
 <meta name="apple-mobile-web-app-title" content="Forge">
 <link rel="apple-touch-icon" href="icon.svg">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
-<!-- Firebase SDK — enables cross-device user discovery in the friends tab -->
+<!-- Firebase SDK — Auth (session persistence) + Realtime DB (user discovery) -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <style>
 /* ─────────────────────────────────────────
@@ -881,6 +882,10 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
 .prog-profile-item-name{font-size:15px;font-weight:600;color:var(--text)}
 .prog-profile-item-sub{font-size:11px;color:var(--text4);margin-top:2px}
 .prog-profile-item-check{color:var(--accent);font-size:16px}
+.login-forgot{background:none;border:none;color:var(--text4);font-size:12px;font-family:inherit;cursor:pointer;padding:4px 8px;text-decoration:underline;text-decoration-color:transparent;transition:color .15s,text-decoration-color .15s}
+.login-forgot:hover{color:var(--accent);text-decoration-color:var(--accent)}
+@keyframes auth-spin{to{transform:rotate(360deg)}}
+.auth-spinner{width:32px;height:32px;border:3px solid var(--card2);border-top-color:var(--accent);border-radius:50%;animation:auth-spin .8s linear infinite}
 </style>
 
 </head>
@@ -891,6 +896,11 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
      LOGIN / SIGN UP
 ══════════════════════════════════ -->
 <div class="screen" id="screen-login">
+  <!-- Auth-resolving overlay: shown on cold launch until onAuthStateChanged fires -->
+  <div id="auth-loading" style="position:absolute;inset:0;background:var(--bg);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px">
+    <div class="auth-spinner"></div>
+    <div style="font-size:13px;color:var(--text-muted);letter-spacing:.03em">Loading…</div>
+  </div>
   <div class="status-bar">
     <span class="status-time" id="clock-login">9:41</span>
     <span class="status-icons"><i class="ti ti-wifi"></i><i class="ti ti-battery-2"></i></span>
@@ -914,6 +924,9 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
       </div>
       <div class="login-err" id="login-err"></div>
       <button type="button" class="login-btn" id="login-btn" disabled onclick="submitLogin()">Sign In</button>
+      <div style="text-align:center;margin-top:10px">
+        <button type="button" class="login-forgot" onclick="forgotPassword()">Forgot password?</button>
+      </div>
       <div class="login-div"><span>or</span></div>
       <button type="button" class="login-alt" onclick="switchLoginMode('signup')">Create a free account</button>
       <div class="login-sw">New here? <b onclick="switchLoginMode('signup')">Sign up</b></div>
@@ -1975,12 +1988,16 @@ const FF_FIREBASE_CONFIG = {
   appId: "1:843136303143:web:68d127c271808decedce02"
 };
 
-let ffDB = null;
+let ffDB   = null;
+let ffAuth = null;
 function initFirebase() {
   if (!FF_FIREBASE_CONFIG || typeof firebase === 'undefined') return;
   try {
     if (!firebase.apps.length) firebase.initializeApp(FF_FIREBASE_CONFIG);
-    ffDB = firebase.database();
+    ffDB   = firebase.database();
+    ffAuth = firebase.auth();
+    // LOCAL persistence stores the session in IndexedDB — survives across Safari / PWA contexts on iOS
+    ffAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(() => {});
   } catch(e) { console.warn('Firebase init failed:', e); }
 }
 initFirebase();
@@ -2071,44 +2088,109 @@ function validateSignupForm() {
   const p = document.getElementById('signup-password').value || '';
   document.getElementById('signup-btn').disabled = !(e.includes('@') && p.length >= 6);
 }
-function submitLogin() {
+function _setLoginLoading(loading) {
+  const btn = document.getElementById('login-btn');
+  btn.disabled = loading;
+  btn.textContent = loading ? 'Signing in…' : 'Sign In';
+}
+function _setSignupLoading(loading) {
+  const btn = document.getElementById('signup-btn');
+  btn.disabled = loading;
+  btn.textContent = loading ? 'Creating account…' : 'Create Account →';
+}
+
+async function submitLogin() {
+  if (!ffAuth) {
+    // Firebase unavailable — fall back to legacy localStorage auth
+    const email = document.getElementById('login-email').value.trim().toLowerCase();
+    const pass  = document.getElementById('login-password').value;
+    const accounts = loadAccounts();
+    const acc = accounts[email];
+    if (!acc || acc.passwordHash !== hashPass(pass)) {
+      document.getElementById('login-err').textContent = 'Incorrect email or password.';
+      return;
+    }
+    _bootWithEmail(email);
+    return;
+  }
   const email = document.getElementById('login-email').value.trim().toLowerCase();
   const pass  = document.getElementById('login-password').value;
-  const accounts = loadAccounts();
-  const acc = accounts[email];
-  if (!acc || acc.passwordHash !== hashPass(pass)) {
-    document.getElementById('login-err').textContent = 'Incorrect email or password.';
-    return;
-  }
-  activeAccountEmail = email;
-  localStorage.setItem('ff_activeAccount', email);
-  loadState();
-  if (userProfile.setupComplete) {
-    pushUserToFirebase();
-    goScreen('screen-app');
-    renderRoutineList(); renderLog(); renderLogStats(); buildHeatmap();
-    checkActiveWorkout();
-    checkRoutineFromUrl();
-  } else {
-    startOnboarding();
+  document.getElementById('login-err').textContent = '';
+  _setLoginLoading(true);
+  try {
+    await ffAuth.signInWithEmailAndPassword(email, pass);
+    // onAuthStateChanged will call _bootWithEmail — nothing to do here
+  } catch(e) {
+    _setLoginLoading(false);
+    const msgs = {
+      'auth/user-not-found':     'No account found for this email.',
+      'auth/wrong-password':     'Incorrect password.',
+      'auth/invalid-email':      'Please enter a valid email address.',
+      'auth/too-many-requests':  'Too many attempts. Try again later.',
+      'auth/invalid-credential': 'Incorrect email or password.',
+    };
+    document.getElementById('login-err').textContent = msgs[e.code] || 'Sign in failed. Please try again.';
   }
 }
-function submitSignup() {
-  const email = document.getElementById('signup-email').value.trim().toLowerCase();
-  const pass  = document.getElementById('signup-password').value;
-  if (!email.includes('@') || pass.length < 6) return;
-  const accounts = loadAccounts();
-  if (accounts[email]) {
-    document.getElementById('signup-err').textContent = 'An account with this email already exists.';
+
+async function submitSignup() {
+  if (!ffAuth) {
+    // Firebase unavailable — fall back to legacy localStorage auth
+    const email = document.getElementById('signup-email').value.trim().toLowerCase();
+    const pass  = document.getElementById('signup-password').value;
+    if (!email.includes('@') || pass.length < 6) return;
+    const accounts = loadAccounts();
+    if (accounts[email]) {
+      document.getElementById('signup-err').textContent = 'An account with this email already exists.';
+      return;
+    }
+    accounts[email] = { passwordHash: hashPass(pass), createdAt: new Date().toISOString() };
+    saveAccounts(accounts);
+    activeAccountEmail = email;
+    localStorage.setItem('ff_activeAccount', email);
+    userRoutines = []; logEntries = []; bodyweightLog = [];
+    userProfile = { name:'', goal:'', bodyweight:null, weightUnit:'lbs', setupComplete:false };
+    startOnboarding();
     return;
   }
-  accounts[email] = { passwordHash: hashPass(pass), createdAt: new Date().toISOString() };
-  saveAccounts(accounts);
-  activeAccountEmail = email;
-  localStorage.setItem('ff_activeAccount', email);
-  userRoutines = []; logEntries = []; bodyweightLog = [];
-  userProfile = { name:'', goal:'', bodyweight:null, weightUnit:'lbs', setupComplete:false };
-  startOnboarding();
+  const email = document.getElementById('signup-email').value.trim().toLowerCase();
+  const pass  = document.getElementById('signup-password').value;
+  document.getElementById('signup-err').textContent = '';
+  _setSignupLoading(true);
+  try {
+    await ffAuth.createUserWithEmailAndPassword(email, pass);
+    // onAuthStateChanged fires, _bootWithEmail runs, then startOnboarding() since setupComplete is false
+  } catch(e) {
+    _setSignupLoading(false);
+    const msgs = {
+      'auth/email-already-in-use': 'An account with this email already exists.',
+      'auth/invalid-email':        'Please enter a valid email address.',
+      'auth/weak-password':        'Password must be at least 6 characters.',
+    };
+    document.getElementById('signup-err').textContent = msgs[e.code] || 'Sign up failed. Please try again.';
+  }
+}
+
+async function forgotPassword() {
+  if (!ffAuth) { alert('Password reset requires an internet connection.'); return; }
+  const emailEl = document.getElementById('login-email');
+  const email = emailEl.value.trim().toLowerCase();
+  if (!email.includes('@')) {
+    emailEl.focus();
+    document.getElementById('login-err').textContent = 'Enter your email address above first.';
+    return;
+  }
+  try {
+    await ffAuth.sendPasswordResetEmail(email);
+    document.getElementById('login-err').style.color = 'var(--accent)';
+    document.getElementById('login-err').textContent = 'Reset email sent — check your inbox.';
+    setTimeout(() => {
+      const el = document.getElementById('login-err');
+      if (el) { el.style.color = ''; el.textContent = ''; }
+    }, 5000);
+  } catch(e) {
+    document.getElementById('login-err').textContent = 'Could not send reset email. Check the address and try again.';
+  }
 }
 
 // ─────────────────────────────────────────
@@ -4267,7 +4349,9 @@ function signOut() {
   document.getElementById('login-password').value='';
   document.getElementById('login-err').textContent='';
   document.getElementById('login-btn').disabled=true;
+  document.getElementById('login-btn').textContent='Sign In';
   switchLoginMode('signin');
+  if (ffAuth) ffAuth.signOut().catch(() => {});
 }
 
 // ── ADD EXERCISE DURING WORKOUT ──
@@ -7097,23 +7181,51 @@ function loadState() {
 // ─────────────────────────────────────────
 // INIT
 // ─────────────────────────────────────────
-(function init() {
-  const savedAccount = localStorage.getItem('ff_activeAccount');
-  if (savedAccount) {
-    activeAccountEmail = savedAccount;
-    loadState();
-    if (userProfile.setupComplete) {
-      initFriendsData();
-      goScreen('screen-app');
-      renderRoutineList(); renderLog(); renderLogStats(); buildHeatmap();
-      checkActiveWorkout();
-      checkRoutineFromUrl();
-    } else {
-      startOnboarding();
-    }
+function _bootWithEmail(email) {
+  activeAccountEmail = email;
+  localStorage.setItem('ff_activeAccount', email);
+  loadState();
+  if (userProfile.setupComplete) {
+    initFriendsData();
+    pushUserToFirebase();
+    goScreen('screen-app');
+    renderRoutineList(); renderLog(); renderLogStats(); buildHeatmap();
+    checkActiveWorkout();
+    checkRoutineFromUrl();
   } else {
-    goScreen('screen-login');
+    startOnboarding();
   }
+}
+
+(function init() {
+  // Always start on login while auth resolves — the loading overlay covers it
+  goScreen('screen-login');
+
+  if (!ffAuth) {
+    // Firebase Auth unavailable (offline, blocked CDN) — fall back to localStorage session
+    const savedAccount = localStorage.getItem('ff_activeAccount');
+    if (savedAccount) _bootWithEmail(savedAccount);
+    const lo = document.getElementById('auth-loading');
+    if (lo) lo.style.display = 'none';
+    return;
+  }
+
+  // Firebase Auth is available — its session is stored in IndexedDB, which iOS shares
+  // correctly between Safari and the standalone PWA (unlike localStorage pre-iOS 16.4)
+  ffAuth.onAuthStateChanged(user => {
+    const lo = document.getElementById('auth-loading');
+    if (lo) lo.style.display = 'none';
+
+    if (user) {
+      // Skip re-init on token refreshes (same user already booted)
+      if (activeAccountEmail === user.email) return;
+      _bootWithEmail(user.email);
+    } else {
+      // No session — show login
+      activeAccountEmail = null;
+      goScreen('screen-login');
+    }
+  });
 })();
 
 // ─────────────────────────────────────────
