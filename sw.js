@@ -1,8 +1,8 @@
-const CACHE = 'forge-v3';
+const CACHE = 'forge-v4';
 const STATIC = ['./icon.svg', './manifest.json'];
 
 self.addEventListener('install', e => {
-  self.skipWaiting();
+  // Don't skipWaiting here — let the app show an update banner and reload cleanly
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(STATIC)));
 });
 
@@ -12,6 +12,11 @@ self.addEventListener('activate', e => {
       .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
+});
+
+// App posts SKIP_WAITING when user taps the update banner
+self.addEventListener('message', e => {
+  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('fetch', e => {

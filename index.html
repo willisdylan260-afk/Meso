@@ -7695,7 +7695,46 @@ function buildDayLabels(splitName, days) {
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
+    navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
+      .then(reg => {
+        // Check for updates whenever the user brings the app to the foreground
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') reg.update();
+        });
+        // When a new service worker is waiting, show an update banner
+        const checkWaiting = (r) => {
+          if (r.waiting) showUpdateBanner();
+        };
+        checkWaiting(reg);
+        reg.addEventListener('updatefound', () => {
+          reg.installing.addEventListener('statechange', () => {
+            if (reg.installing && reg.installing.state === 'installed') checkWaiting(reg);
+          });
+        });
+      }).catch(() => {});
+  });
+}
+
+function showUpdateBanner() {
+  if (document.getElementById('sw-update-banner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'sw-update-banner';
+  banner.innerHTML = `<span>Update available</span><button onclick="applyUpdate()">Refresh</button>`;
+  banner.style.cssText = 'position:fixed;bottom:84px;left:50%;transform:translateX(-50%);background:var(--accent);color:#0a1a17;border-radius:20px;padding:10px 16px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:10px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.4);white-space:nowrap';
+  banner.querySelector('button').style.cssText = 'background:rgba(0,0,0,.18);border:none;border-radius:12px;color:inherit;font-weight:700;font-size:13px;font-family:inherit;padding:4px 10px;cursor:pointer';
+  document.body.appendChild(banner);
+}
+
+function applyUpdate() {
+  navigator.serviceWorker.getRegistration().then(reg => {
+    if (reg && reg.waiting) {
+      reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+      reg.waiting.addEventListener('statechange', e => {
+        if (e.target.state === 'activated') window.location.reload();
+      });
+    } else {
+      window.location.reload();
+    }
   });
 }
 </script>
