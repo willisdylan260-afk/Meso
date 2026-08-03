@@ -5484,14 +5484,14 @@ const WEEKDAY_FULL = {
 // Returns "Monday · Push" (or just "Push" if no weekday is mapped)
 function getDayDisplayLabel(r, d, i) {
   const wds = WEEKDAY_MAPS[r.daysPerWeek] || [];
-  const short = wds[i] || d.weekday || '';
+  const short = d.weekday || wds[i] || '';
   const full  = short ? (WEEKDAY_FULL[short] || short) : '';
   return full ? full + ' · ' + d.label : d.label;
 }
 // Returns the short weekday ("Mon") for small pill displays
 function getDayShort(r, d, i) {
   const wds = WEEKDAY_MAPS[r.daysPerWeek] || [];
-  return wds[i] || d.weekday || d.label.split(' ')[0];
+  return d.weekday || wds[i] || d.label.split(' ')[0];
 }
 // Returns the day object the user should be on right now.
 // Prefers the actual calendar weekday over the sequential "today" flag so
@@ -5500,7 +5500,7 @@ function getActiveDay(r) {
   const todayShort = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date().getDay()];
   const weekdays = WEEKDAY_MAPS[r.daysPerWeek] || [];
   const calMatch = r.days.find((d, i) => {
-    const wd = weekdays[i] || d.weekday || '';
+    const wd = d.weekday || weekdays[i] || '';
     return wd === todayShort && !d.done;
   });
   return calMatch || r.days.find(d => !d.done) || r.days[0];
