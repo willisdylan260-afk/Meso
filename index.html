@@ -5745,7 +5745,7 @@ function renderTodayCard() {
   }
 
   const weekdays = WEEKDAY_MAPS[active.daysPerWeek] || [];
-  const todayDayIdx = active.days.findIndex((d, i) => (weekdays[i] || d.weekday || '') === todayShort);
+  const todayDayIdx = active.days.findIndex((d, i) => (d.weekday || weekdays[i] || '') === todayShort);
 
   const otherDayPills = (excludeIdx) => {
     const WD_ORDER = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
@@ -5754,8 +5754,8 @@ function renderTodayCard() {
       .map((d, i) => ({d, i}))
       .filter(({i}) => i !== excludeIdx)
       .sort((a, b) =>
-        WD_ORDER.indexOf(wds[a.i] || a.d.weekday || '') -
-        WD_ORDER.indexOf(wds[b.i] || b.d.weekday || '')
+        WD_ORDER.indexOf(a.d.weekday || wds[a.i] || '') -
+        WD_ORDER.indexOf(b.d.weekday || wds[b.i] || '')
       );
     if (!others.length) return '';
     const pills = others.map(({d, i}) =>
@@ -5821,7 +5821,7 @@ function renderRoutineList() {
     const weekdays = WEEKDAY_MAPS[r.daysPerWeek] || r.days.map((_,i)=>['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][i]||'');
 
     const weekStrip = ALL_WD.map(wd => {
-      const dayIdx = r.days.findIndex((d,i) => (weekdays[i] || d.weekday || '') === wd);
+      const dayIdx = r.days.findIndex((d,i) => (d.weekday || weekdays[i] || '') === wd);
       const isToday = wd === todayShort;
       if (dayIdx === -1) {
         return `<div class="rw-col rw-rest${isToday?' rw-today':''}"><div class="rw-wd">${wd[0]}</div><div class="rw-lbl">—</div></div>`;
@@ -5882,8 +5882,8 @@ function renderLogActiveCard() {
     .map((d, i) => ({d, i}))
     .filter(({i}) => i !== todayIdx)
     .sort((a, b) =>
-      WD_ORDER.indexOf(activeWds[a.i] || a.d.weekday || '') -
-      WD_ORDER.indexOf(activeWds[b.i] || b.d.weekday || '')
+      WD_ORDER.indexOf(a.d.weekday || activeWds[a.i] || '') -
+      WD_ORDER.indexOf(b.d.weekday || activeWds[b.i] || '')
     );
   const otherPills = otherDays.length ? `
     <div style="margin-top:10px;padding-top:10px;border-top:0.5px solid rgba(255,255,255,.06)">
@@ -6198,7 +6198,7 @@ const WEEKDAY_TO_INDEX = {Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6};
 function applyRoutineRestDays(routine) {
   const trainDays = new Set(
     (routine.days || []).map((d, i) => {
-      const short = (WEEKDAY_MAPS[routine.daysPerWeek] || [])[i] || d.weekday || '';
+      const short = d.weekday || (WEEKDAY_MAPS[routine.daysPerWeek] || [])[i] || '';
       return WEEKDAY_TO_INDEX[short];
     }).filter(n => n !== undefined)
   );
