@@ -2662,8 +2662,13 @@ const EXERCISES = [
   {name:'Seated leg tuck',          muscle:'Core',      tags:'Bodyweight · Isolation',color:'#c4c45a'},
   {name:'Band woodchop',            muscle:'Core',      tags:'Band · Rotation',       color:'#c4c45a'},
   {name:'Cable twist',              muscle:'Core',      tags:'Cable · Rotation',      color:'#c4c45a'},
+  // ── Endurance ──
+  {name:'Sled push',                muscle:'Endurance', tags:'Sled · Compound',       color:'#5ac4b8'},
+  {name:'Sled pull',                muscle:'Endurance', tags:'Sled · Compound',       color:'#5ac4b8'},
+  {name:'Sled press',               muscle:'Endurance', tags:'Sled · Compound',       color:'#5ac4b8'},
+  {name:'Sled row',                 muscle:'Endurance', tags:'Sled · Compound',       color:'#5ac4b8'},
 ];
-const MUSCLE_FILTERS = ['All','Chest','Back','Legs','Shoulders','Arms','Core'];
+const MUSCLE_FILTERS = ['All','Chest','Back','Legs','Shoulders','Arms','Core','Endurance'];
 let activeFilter = 'All';
 let userExercises = []; // populated from localStorage in loadState()
 
@@ -2714,6 +2719,7 @@ const SEARCH_ALIASES = {
   'chest': 'chest',
   'farmer':'farmer',
   'farmers':'farmer',
+  'sled':  'sled',
 };
 function matchesSearch(e, q) {
   if (!q) return true;
@@ -2773,7 +2779,7 @@ function renderExercises(q = '') {
 }
 
 // ─── CUSTOM EXERCISE CRUD ───
-const MUSCLE_COLORS = {Chest:'#c45a5a',Back:'#5a8ac4',Legs:'#5ac45a',Shoulders:'#c4a05a',Arms:'#8a5ac4',Core:'#c4c45a'};
+const MUSCLE_COLORS = {Chest:'#c45a5a',Back:'#5a8ac4',Legs:'#5ac45a',Shoulders:'#c4a05a',Arms:'#8a5ac4',Core:'#c4c45a',Endurance:'#5ac4b8'};
 let newExSelMuscle = null;
 
 function openNewExSheet() {
@@ -4928,6 +4934,8 @@ function isPR(ei, si) {
   const curW = s.w, curR = s.h[CUR];
   const exName = wktData[ei].name;
   let prevBestW = 0, prevBestReps = 0;
+
+  // Check historical log entries
   getActiveRoutineLogSrc().forEach(e => {
     if (!e.exercises) return;
     const ex = e.exercises.find(x => x.name === exName);
@@ -4937,10 +4945,20 @@ function isPR(ei, si) {
       if (set.w === curW && set.reps > prevBestReps) prevBestReps = set.reps;
     });
   });
-  // Also check previous weeks in current mesocycle
+
+  // Check previous weeks in current mesocycle
   for (let w = 0; w < CUR; w++) {
     if (s.h[w] !== null && s.h[w] > prevBestReps) prevBestReps = s.h[w];
   }
+
+  // Check sets already logged earlier in this workout — a set only earns a PR
+  // badge if it beats everything that came before it, including this session.
+  wktData[ei].sets.forEach((prev, prevSi) => {
+    if (prevSi >= si || prev.warmup || prev.h[CUR] === null) return;
+    if (prev.w > prevBestW) prevBestW = prev.w;
+    if (prev.w === curW && prev.h[CUR] > prevBestReps) prevBestReps = prev.h[CUR];
+  });
+
   if (curW > prevBestW) return 'weight';
   if (prevBestReps > 0 && curR > prevBestReps) return 'rep';
   return '';
