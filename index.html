@@ -7246,6 +7246,7 @@ function saveState() {
     localStorage.setItem(getStorageKey('nutlog'), JSON.stringify(nutritionLog));
     localStorage.setItem(getStorageKey('foodhist'), JSON.stringify(foodHistory));
   } catch(e) {}
+  syncToFirebase();
 }
 
 function loadState() {
@@ -7280,12 +7281,58 @@ function loadState() {
 // (onboarding logic is now in the ACCOUNT / LOGIN section above)
 
 // ─────────────────────────────────────────
+// FIREBASE APP-DATA SYNC
+// Backs up user data to Firebase Realtime Database so it can be restored
+// when the same account is opened from a different storage context
+// (e.g. Safari → standalone PWA on iOS, which have separate localStorage).
+// ─────────────────────────────────────────
+let _fbSyncTimer = null;
+function syncToFirebase() {
+  if (!ffDB || !activeAccountEmail || !userProfile.setupComplete) return;
+  clearTimeout(_fbSyncTimer);
+  _fbSyncTimer = setTimeout(() => {
+    const data = {
+      profile:   userProfile,
+      routines:  userRoutines,
+      log:       logEntries,
+      bwlog:     bodyweightLog,
+      custom_ex: userExercises,
+      nextId:    nextRoutineId
+    };
+    ffDB.ref('forge_app_data/' + emailToFBKey(activeAccountEmail)).set(data).catch(() => {});
+  }, 2000);
+}
+
+// ─────────────────────────────────────────
 // INIT
 // ─────────────────────────────────────────
-function _bootWithEmail(email) {
+async function _bootWithEmail(email) {
   activeAccountEmail = email;
   localStorage.setItem('ff_activeAccount', email);
   loadState();
+
+  if (!userProfile.setupComplete && ffDB) {
+    // No local data — check Firebase before sending to onboarding.
+    // This restores data when the user is on a new storage context (PWA vs Safari).
+    try {
+      const snap = await ffDB.ref('forge_app_data/' + emailToFBKey(email)).once('value');
+      const d = snap.val();
+      if (d && d.profile && d.profile.setupComplete) {
+        if (d.routines)  localStorage.setItem(getStorageKey('routines'),  JSON.stringify(d.routines));
+        if (d.log)       localStorage.setItem(getStorageKey('log'),        JSON.stringify(d.log));
+        if (d.profile)   localStorage.setItem(getStorageKey('profile'),    JSON.stringify(d.profile));
+        if (d.custom_ex) localStorage.setItem(getStorageKey('custom_ex'), JSON.stringify(d.custom_ex));
+        if (d.bwlog)     localStorage.setItem(getStorageKey('bwlog'),      JSON.stringify(d.bwlog));
+        if (d.nextId)    localStorage.setItem(getStorageKey('nextId'),     String(d.nextId));
+        loadState();
+      }
+    } catch(e) {}
+  }
+
+  // Hide loading overlay — kept up during async Firebase fetch above
+  const lo = document.getElementById('auth-loading');
+  if (lo) lo.style.display = 'none';
+
   if (userProfile.setupComplete) {
     initFriendsData();
     pushUserToFirebase();
@@ -7303,26 +7350,26 @@ function _bootWithEmail(email) {
   goScreen('screen-login');
 
   if (!ffAuth) {
-    // Firebase Auth unavailable (offline, blocked CDN) — fall back to localStorage session
+    // Firebase Auth unavailable — fall back to localStorage session
     const savedAccount = localStorage.getItem('ff_activeAccount');
-    if (savedAccount) _bootWithEmail(savedAccount);
-    const lo = document.getElementById('auth-loading');
-    if (lo) lo.style.display = 'none';
+    if (savedAccount) {
+      _bootWithEmail(savedAccount); // async; hides overlay itself when done
+    } else {
+      const lo = document.getElementById('auth-loading');
+      if (lo) lo.style.display = 'none';
+    }
     return;
   }
 
-  // Firebase Auth is available — its session is stored in IndexedDB, which iOS shares
-  // correctly between Safari and the standalone PWA (unlike localStorage pre-iOS 16.4)
-  ffAuth.onAuthStateChanged(user => {
-    const lo = document.getElementById('auth-loading');
-    if (lo) lo.style.display = 'none';
-
+  // Firebase Auth stores its session in IndexedDB, shared between Safari and
+  // standalone PWA on iOS (unlike localStorage which is partitioned per context)
+  ffAuth.onAuthStateChanged(async user => {
     if (user) {
-      // Skip re-init on token refreshes (same user already booted)
-      if (activeAccountEmail === user.email) return;
-      _bootWithEmail(user.email);
+      if (activeAccountEmail === user.email) return; // already booted (token refresh)
+      await _bootWithEmail(user.email);
     } else {
-      // No session — show login
+      const lo = document.getElementById('auth-loading');
+      if (lo) lo.style.display = 'none';
       activeAccountEmail = null;
       goScreen('screen-login');
     }
