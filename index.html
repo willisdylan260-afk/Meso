@@ -1826,7 +1826,7 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
 
   <!-- Swap exercise sheet — lives inside screen-routine so it covers it -->
   <!-- Sets & Reps editor for routine day exercises -->
-  <div class="overlay" id="ex-sets-overlay" style="display:none" onclick="if(event.target===this)closeExSetsEditor()">
+  <div class="overlay" id="ex-sets-overlay" onclick="if(event.target===this)closeExSetsEditor()">
     <div class="sheet" style="padding-bottom:max(24px,env(safe-area-inset-bottom))">
       <div class="sheet-handle"></div>
       <div class="sheet-title" id="ex-sets-exname" style="margin-bottom:4px"></div>
@@ -1847,6 +1847,25 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
         </div>
       </div>
       <button type="button" onclick="saveExSets()" style="width:100%;background:var(--accent);border:none;border-radius:14px;color:#0a1a17;font-size:16px;font-weight:700;padding:16px;cursor:pointer;font-family:inherit">Save</button>
+    </div>
+  </div>
+
+  <!-- Delete routine confirmation -->
+  <div class="overlay" id="confirm-delete-overlay" onclick="if(event.target===this)cancelDeleteRoutine()">
+    <div class="sheet" style="padding-bottom:max(24px,env(safe-area-inset-bottom))">
+      <div class="sheet-handle"></div>
+      <div style="text-align:center;padding:8px 0 20px">
+        <div style="width:48px;height:48px;border-radius:50%;background:#2a0e0e;border:0.5px solid #7a2020;display:flex;align-items:center;justify-content:center;margin:0 auto 14px">
+          <i class="ti ti-trash" style="font-size:20px;color:var(--red)"></i>
+        </div>
+        <div style="font-size:17px;font-weight:700;color:var(--text);margin-bottom:6px">Delete routine?</div>
+        <div id="confirm-delete-name" style="font-size:13px;color:var(--text4)"></div>
+        <div style="font-size:12px;color:var(--text5);margin-top:4px">This cannot be undone.</div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button type="button" onclick="cancelDeleteRoutine()" style="flex:1;background:var(--card2);border:0.5px solid var(--border);border-radius:14px;color:var(--text3);font-size:15px;font-weight:600;padding:15px;cursor:pointer;font-family:inherit">Cancel</button>
+        <button type="button" onclick="deleteRoutine()"       style="flex:1;background:#2a0e0e;border:0.5px solid #7a2020;border-radius:14px;color:var(--red);font-size:15px;font-weight:700;padding:15px;cursor:pointer;font-family:inherit">Delete</button>
+      </div>
     </div>
   </div>
 
@@ -4460,23 +4479,13 @@ function toggleLogEntry(id) {
 
 // ── DELETE ROUTINE CONFIRMATION ──
 function promptDeleteRoutine() {
-  const r = userRoutines.find(r=>r.id===viewingRoutineId);
+  const r = userRoutines.find(r => r.id === viewingRoutineId);
   if (!r) return;
-  const footer = document.getElementById('rd-footer');
-  footer.innerHTML = `
-    <div style="display:flex;flex-direction:column;gap:8px;width:100%">
-      <div style="font-size:12px;color:var(--text4);text-align:center">Delete "${r.name}"? This cannot be undone.</div>
-      <div style="display:flex;gap:8px">
-        <button type="button" onclick="cancelDeleteRoutine()" style="flex:1;background:var(--card2);border:0.5px solid var(--border);border-radius:13px;color:var(--text4);font-size:14px;font-weight:600;padding:13px;cursor:pointer;font-family:inherit">Cancel</button>
-        <button type="button" onclick="deleteRoutine()" style="flex:1;background:#2a0e0e;border:0.5px solid #7a2020;border-radius:13px;color:var(--red);font-size:14px;font-weight:600;padding:13px;cursor:pointer;font-family:inherit">Delete</button>
-      </div>
-    </div>`;
+  document.getElementById('confirm-delete-name').textContent = '"' + r.name + '"';
+  document.getElementById('confirm-delete-overlay').classList.add('show');
 }
 function cancelDeleteRoutine() {
-  const footer = document.getElementById('rd-footer');
-  footer.innerHTML = `
-    <button type="button" class="rd-footer-del" onclick="promptDeleteRoutine()" aria-label="Delete routine"><i class="ti ti-trash"></i></button>
-    <button type="button" class="rd-footer-start" onclick="startDetailWorkout()">Start Today's Workout →</button>`;
+  document.getElementById('confirm-delete-overlay').classList.remove('show');
 }
 
 function reactToActivity(id, emoji) {
@@ -6389,10 +6398,10 @@ function openExSetsEditor(dayIdx, exIdx) {
   document.getElementById('ex-sets-exname').textContent = ex.name;
   document.getElementById('ex-sets-val').textContent = ex.sets;
   document.getElementById('ex-reps-val').value = ex.reps;
-  document.getElementById('ex-sets-overlay').style.display = 'flex';
+  document.getElementById('ex-sets-overlay').classList.add('show');
 }
 function closeExSetsEditor() {
-  document.getElementById('ex-sets-overlay').style.display = 'none';
+  document.getElementById('ex-sets-overlay').classList.remove('show');
   exSetsCtx = null;
 }
 function adjustExSets(delta) {
@@ -6444,6 +6453,7 @@ function rdAddWorkout() {
 
 // ── DELETE ROUTINE ──
 function deleteRoutine() {
+  document.getElementById('confirm-delete-overlay').classList.remove('show');
   userRoutines = userRoutines.filter(r => r.id !== viewingRoutineId);
   if (userRoutines.length && !userRoutines.find(r => r.active)) userRoutines[0].active = true;
   saveState();
