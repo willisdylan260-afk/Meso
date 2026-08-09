@@ -1864,7 +1864,7 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
       </div>
       <div style="display:flex;gap:10px">
         <button type="button" onclick="cancelDeleteRoutine()" style="flex:1;background:var(--card2);border:0.5px solid var(--border);border-radius:14px;color:var(--text3);font-size:15px;font-weight:600;padding:15px;cursor:pointer;font-family:inherit">Cancel</button>
-        <button type="button" onclick="deleteRoutine()"       style="flex:1;background:#2a0e0e;border:0.5px solid #7a2020;border-radius:14px;color:var(--red);font-size:15px;font-weight:700;padding:15px;cursor:pointer;font-family:inherit">Delete</button>
+        <button type="button" onclick="executePendingDelete()" style="flex:1;background:#2a0e0e;border:0.5px solid #7a2020;border-radius:14px;color:var(--red);font-size:15px;font-weight:700;padding:15px;cursor:pointer;font-family:inherit">Delete</button>
       </div>
     </div>
   </div>
@@ -4478,13 +4478,23 @@ function toggleLogEntry(id) {
 }
 
 // ── DELETE ROUTINE CONFIRMATION ──
+let _pendingDeleteFn = null;
+function _showDeleteConfirm(label, fn) {
+  _pendingDeleteFn = fn;
+  document.getElementById('confirm-delete-name').textContent = label;
+  document.getElementById('confirm-delete-overlay').classList.add('show');
+}
+function executePendingDelete() {
+  document.getElementById('confirm-delete-overlay').classList.remove('show');
+  if (_pendingDeleteFn) { _pendingDeleteFn(); _pendingDeleteFn = null; }
+}
 function promptDeleteRoutine() {
   const r = userRoutines.find(r => r.id === viewingRoutineId);
   if (!r) return;
-  document.getElementById('confirm-delete-name').textContent = '"' + r.name + '"';
-  document.getElementById('confirm-delete-overlay').classList.add('show');
+  _showDeleteConfirm('"' + r.name + '"', deleteRoutine);
 }
 function cancelDeleteRoutine() {
+  _pendingDeleteFn = null;
   document.getElementById('confirm-delete-overlay').classList.remove('show');
 }
 
@@ -6426,12 +6436,15 @@ function rdDeleteDay(dayIdx) {
   const r = userRoutines.find(r => r.id === viewingRoutineId);
   if (!r) return;
   if (r.days.length <= 1) { showToast('Routine needs at least 1 workout'); return; }
-  r.days.splice(dayIdx, 1);
-  r.daysPerWeek = r.days.length;
-  saveState();
-  renderDayList(r);
-  renderRoutineList();
-  document.getElementById('rd-meta').textContent = r.daysPerWeek + ' days/week · ' + r.goal;
+  const dayLabel = r.days[dayIdx].label || 'this workout';
+  _showDeleteConfirm('"' + dayLabel + '"', () => {
+    r.days.splice(dayIdx, 1);
+    r.daysPerWeek = r.days.length;
+    saveState();
+    renderDayList(r);
+    renderRoutineList();
+    document.getElementById('rd-meta').textContent = r.daysPerWeek + ' days/week · ' + r.goal;
+  });
 }
 
 // ── ADD WORKOUT DAY ──
@@ -6453,7 +6466,6 @@ function rdAddWorkout() {
 
 // ── DELETE ROUTINE ──
 function deleteRoutine() {
-  document.getElementById('confirm-delete-overlay').classList.remove('show');
   userRoutines = userRoutines.filter(r => r.id !== viewingRoutineId);
   if (userRoutines.length && !userRoutines.find(r => r.active)) userRoutines[0].active = true;
   saveState();
