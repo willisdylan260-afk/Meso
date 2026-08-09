@@ -660,6 +660,9 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
 /* Routine detail — inline edit controls */
 .rd-wdchip{flex-shrink:0;background:var(--accent-dim);border:0.5px solid var(--accent-border);border-radius:7px;padding:3px 8px;font-size:10px;font-weight:800;color:var(--accent);cursor:pointer;letter-spacing:.04em;white-space:nowrap;transition:opacity .12s;user-select:none}
 .rd-wdchip:active{opacity:.6}
+.rd-variant-pill{flex-shrink:0;background:var(--card2);border:0.5px solid var(--border);border-radius:7px;padding:3px 7px;font-size:10px;font-weight:800;color:var(--text4);cursor:pointer;letter-spacing:.05em;white-space:nowrap;transition:background .15s,color .15s,border-color .15s;user-select:none;font-family:inherit}
+.rd-variant-pill.active{background:rgba(90,180,180,.15);border-color:rgba(90,180,180,.4);color:#5ab4b4}
+.rd-variant-pill:active{opacity:.6}
 .rd-day-name{font-size:13px;font-weight:600;color:var(--text2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;transition:color .12s}
 .rd-day-name:active{color:var(--accent)}
 .rd-icon-btn{flex-shrink:0;width:26px;height:26px;border:none;background:transparent;color:var(--text6);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:7px;transition:color .12s;font-family:inherit;padding:0}
@@ -5730,6 +5733,77 @@ const DAY_EXERCISES = {
     {name:'Lateral raise',           muscle:'Shoulders', sets:4,reps:'12-15',w:20},
     {name:'Tricep pushdown',         muscle:'Arms',      sets:3,reps:'12',  w:50},
   ],
+  // ── A/B Variant Templates ──
+  'Push-A': [
+    {name:'Bench press',             muscle:'Chest',     sets:4,reps:'6-8',  w:155},
+    {name:'Incline DB press',        muscle:'Chest',     sets:3,reps:'8-12', w:55},
+    {name:'Cable chest fly',         muscle:'Chest',     sets:3,reps:'12-15',w:40},
+    {name:'Overhead press',          muscle:'Shoulders', sets:3,reps:'8-10', w:85},
+    {name:'Tricep pushdown',         muscle:'Arms',      sets:3,reps:'12-15',w:50},
+  ],
+  'Push-B': [
+    {name:'Overhead press',          muscle:'Shoulders', sets:4,reps:'6-8',  w:95},
+    {name:'Arnold press',            muscle:'Shoulders', sets:3,reps:'10-12',w:35},
+    {name:'Lateral raise',           muscle:'Shoulders', sets:4,reps:'12-15',w:20},
+    {name:'Close grip bench press',  muscle:'Arms',      sets:3,reps:'8-10', w:145},
+    {name:'Skull crusher',           muscle:'Arms',      sets:3,reps:'10-12',w:65},
+  ],
+  'Pull-A': [
+    {name:'Pull-up',                 muscle:'Back',      sets:4,reps:'6-10', w:0},
+    {name:'Lat pulldown',            muscle:'Back',      sets:3,reps:'10-12',w:120},
+    {name:'Cable pullover',          muscle:'Back',      sets:3,reps:'12-15',w:50},
+    {name:'Face pull',               muscle:'Shoulders', sets:3,reps:'15-20',w:40},
+    {name:'Hammer curl',             muscle:'Arms',      sets:3,reps:'10-12',w:35},
+  ],
+  'Pull-B': [
+    {name:'Barbell row',             muscle:'Back',      sets:4,reps:'6-8',  w:135},
+    {name:'Seated cable row',        muscle:'Back',      sets:3,reps:'10-12',w:110},
+    {name:'Chest-supported row',     muscle:'Back',      sets:3,reps:'10-12',w:90},
+    {name:'Rear delt fly',           muscle:'Shoulders', sets:3,reps:'15-20',w:15},
+    {name:'Bicep curl',              muscle:'Arms',      sets:3,reps:'10-12',w:35},
+  ],
+  'Legs-A': [
+    {name:'Squat',                   muscle:'Legs',      sets:4,reps:'6-8',  w:185},
+    {name:'Leg press',               muscle:'Legs',      sets:3,reps:'10-12',w:270},
+    {name:'Bulgarian split squat',   muscle:'Legs',      sets:3,reps:'10-12',w:45},
+    {name:'Leg extension',           muscle:'Legs',      sets:3,reps:'12-15',w:90},
+    {name:'Calf raise',              muscle:'Legs',      sets:4,reps:'15-20',w:180},
+  ],
+  'Legs-B': [
+    {name:'Romanian deadlift',       muscle:'Legs',      sets:4,reps:'8-10', w:155},
+    {name:'Hip thrust',              muscle:'Legs',      sets:4,reps:'10-12',w:185},
+    {name:'Leg curl',                muscle:'Legs',      sets:3,reps:'10-12',w:90},
+    {name:'Good morning',            muscle:'Legs',      sets:3,reps:'10-12',w:95},
+    {name:'Seated calf raise',       muscle:'Legs',      sets:3,reps:'15-20',w:90},
+  ],
+  'Upper-A': [
+    {name:'Bench press',             muscle:'Chest',     sets:4,reps:'6-8',  w:155},
+    {name:'Overhead press',          muscle:'Shoulders', sets:3,reps:'8-10', w:95},
+    {name:'Incline DB press',        muscle:'Chest',     sets:3,reps:'10-12',w:55},
+    {name:'Lateral raise',           muscle:'Shoulders', sets:3,reps:'12-15',w:20},
+    {name:'Tricep pushdown',         muscle:'Arms',      sets:3,reps:'12-15',w:50},
+  ],
+  'Upper-B': [
+    {name:'Barbell row',             muscle:'Back',      sets:4,reps:'6-8',  w:135},
+    {name:'Pull-up',                 muscle:'Back',      sets:4,reps:'6-10', w:0},
+    {name:'Lat pulldown',            muscle:'Back',      sets:3,reps:'10-12',w:120},
+    {name:'Face pull',               muscle:'Shoulders', sets:3,reps:'15-20',w:40},
+    {name:'Bicep curl',              muscle:'Arms',      sets:3,reps:'10-12',w:35},
+  ],
+  'Lower-A': [
+    {name:'Squat',                   muscle:'Legs',      sets:4,reps:'6-8',  w:185},
+    {name:'Leg press',               muscle:'Legs',      sets:3,reps:'10-12',w:270},
+    {name:'Bulgarian split squat',   muscle:'Legs',      sets:3,reps:'10-12',w:45},
+    {name:'Leg extension',           muscle:'Legs',      sets:3,reps:'12-15',w:90},
+    {name:'Calf raise',              muscle:'Legs',      sets:3,reps:'15-20',w:180},
+  ],
+  'Lower-B': [
+    {name:'Romanian deadlift',       muscle:'Legs',      sets:4,reps:'8-10', w:155},
+    {name:'Hip thrust',              muscle:'Legs',      sets:4,reps:'10-12',w:185},
+    {name:'Leg curl',                muscle:'Legs',      sets:3,reps:'10-12',w:95},
+    {name:'Good morning',            muscle:'Legs',      sets:3,reps:'10-12',w:95},
+    {name:'Seated calf raise',       muscle:'Legs',      sets:3,reps:'15-20',w:90},
+  ],
 };
 function getExercisesForDay(label) {
   if (label.includes('/')) {
@@ -6069,6 +6143,43 @@ function renameClientName() {
 }
 
 // ── DAY LIST (with drag-reorder + swap + inline edit) ──
+// ── A/B VARIANT HELPERS ──
+const DAY_ABBREV = { Push:'PSH', Pull:'PLL', Legs:'LEG', Upper:'UPR', Lower:'LWR' };
+
+function getDayBaseType(label) {
+  const l = (label || '').toLowerCase().replace(/\s+[ab]$/i, '').trim();
+  if (l.startsWith('push'))  return 'Push';
+  if (l.startsWith('pull'))  return 'Pull';
+  if (l.startsWith('leg'))   return 'Legs';
+  if (l.startsWith('upper')) return 'Upper';
+  if (l.startsWith('lower')) return 'Lower';
+  return null;
+}
+
+function cycleDayVariant(dayIdx) {
+  const r = userRoutines.find(r => r.id === viewingRoutineId);
+  if (!r) return;
+  const d = r.days[dayIdx];
+  const base = getDayBaseType(d.label);
+  if (!base) return;
+  // Cycle: null → A → B → null
+  const next = d.variant === null ? 'A' : d.variant === 'A' ? 'B' : null;
+  d.variant = next;
+  d.label   = next ? base + ' ' + next : base;
+  // Load the matching template, scaled to goal
+  const key  = next ? base + '-' + next : base;
+  const tmpl = DAY_EXERCISES[key] || DAY_EXERCISES[base] || [];
+  const goal = r.goal || userProfile.goal || 'General fitness';
+  d.exercises = tmpl.map(e => {
+    const s = scaleExForGoal(e.sets, e.reps, goal);
+    return { ...e, sets: s.sets, reps: s.reps };
+  });
+  saveState();
+  renderDayList(r);
+  renderRoutineList();
+  showToast(next ? 'Switched to ' + d.label : base + ' — standard');
+}
+
 function renderDayList(r) {
   const openSet = new Set(
     [...document.querySelectorAll('.rd-day-body.open')]
@@ -6079,6 +6190,14 @@ function renderDayList(r) {
     const exs = d.exercises || [];
     const isOpen = openSet.has(i);
     const wd = d.weekday || (WEEKDAY_MAPS[r.daysPerWeek] || [])[i] || '';
+    const base = getDayBaseType(d.label);
+    const abbrev = base ? DAY_ABBREV[base] : null;
+    const varPill = abbrev
+      ? `<button type="button" class="rd-variant-pill${d.variant ? ' active' : ''}"
+           onclick="event.stopPropagation();cycleDayVariant(${i})"
+           title="${d.variant ? 'A/B: tap to cycle' : 'Tap to enable A/B variant'}"
+         >${abbrev}${d.variant ? ' ' + d.variant : ''}</button>`
+      : '';
     return `
       <div class="rd-day-card" id="rdd-${i}" draggable="true"
            ondragstart="dragStart(event,${i})" ondragover="dragOver(event,${i})"
@@ -6086,6 +6205,7 @@ function renderDayList(r) {
         <div class="rd-day-hd" onclick="toggleDayBody(${i})">
           <i class="ti ti-grip-vertical rd-drag-handle" ontouchstart="dayTouchStart(event,${i})"></i>
           ${wd ? `<div class="rd-wdchip" onclick="event.stopPropagation();rdCycleWeekday(${i})" title="Tap to change day">${wd}</div>` : ''}
+          ${varPill}
           <div class="rd-day-name" onclick="event.stopPropagation();rdRenameDay(${i})" title="Tap to rename">${d.label}</div>
           <div class="rd-day-count">${exs.length} ex</div>
           <button type="button" class="rd-icon-btn del" onclick="event.stopPropagation();rdDeleteDay(${i})" aria-label="Delete workout"><i class="ti ti-trash" style="font-size:13px"></i></button>
@@ -7403,6 +7523,7 @@ function loadState() {
       if (!rt.owner)      rt.owner      = 'self';
       if (!rt.clientName) rt.clientName = '';
       if (!rt.clientLog)  rt.clientLog  = [];
+      (rt.days || []).forEach(d => { if (d.variant === undefined) d.variant = null; });
     });
     if (n) nextRoutineId = parseInt(n);
     if (l) logEntries = JSON.parse(l);
