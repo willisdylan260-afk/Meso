@@ -1825,6 +1825,31 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
   </div>
 
   <!-- Swap exercise sheet — lives inside screen-routine so it covers it -->
+  <!-- Sets & Reps editor for routine day exercises -->
+  <div class="overlay" id="ex-sets-overlay" style="display:none" onclick="if(event.target===this)closeExSetsEditor()">
+    <div class="sheet" style="padding-bottom:max(24px,env(safe-area-inset-bottom))">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title" id="ex-sets-exname" style="margin-bottom:4px"></div>
+      <div class="sheet-sub" style="margin-bottom:20px">Sets &amp; reps</div>
+      <div style="display:flex;gap:12px;margin-bottom:20px">
+        <div style="flex:1">
+          <div style="font-size:11px;color:var(--text4);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Sets</div>
+          <div style="display:flex;align-items:center;gap:0;background:var(--card2);border-radius:12px;overflow:hidden;border:0.5px solid var(--border)">
+            <button type="button" onclick="adjustExSets(-1)" style="flex:1;padding:14px;background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;font-family:inherit">−</button>
+            <div id="ex-sets-val" style="flex:1;text-align:center;font-size:20px;font-weight:700;color:var(--text)">3</div>
+            <button type="button" onclick="adjustExSets(1)"  style="flex:1;padding:14px;background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;font-family:inherit">+</button>
+          </div>
+        </div>
+        <div style="flex:1">
+          <div style="font-size:11px;color:var(--text4);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Reps</div>
+          <input id="ex-reps-val" type="text" inputmode="text" placeholder="8-12"
+            style="width:100%;box-sizing:border-box;background:var(--card2);border:0.5px solid var(--border);border-radius:12px;color:var(--text);font-size:20px;font-weight:700;padding:14px;text-align:center;font-family:inherit">
+        </div>
+      </div>
+      <button type="button" onclick="saveExSets()" style="width:100%;background:var(--accent);border:none;border-radius:14px;color:#0a1a17;font-size:16px;font-weight:700;padding:16px;cursor:pointer;font-family:inherit">Save</button>
+    </div>
+  </div>
+
   <div class="overlay" id="swap-overlay" onclick="handleSwapOverlayClick(event)">
     <div class="sheet" style="max-height:88%;display:flex;flex-direction:column">
       <div class="sheet-handle"></div>
@@ -5708,9 +5733,49 @@ function getExercisesForDay(label) {
   return key ? DAY_EXERCISES[key] : DAY_EXERCISES['Full Body'];
 }
 // Ensure every day has a stored exercises array (deep copy so swaps don't mutate the template)
+// Returns sets/reps defaults tuned to a training goal, used for newly added exercises.
+function goalRepConfig(goal) {
+  if (!goal) return { sets: 3, reps: '8-12' };
+  const g = goal.toLowerCase();
+  if (g.includes('stronger') || g.includes('strength')) return { sets: 4, reps: '4-6'  };
+  if (g.includes('muscle')   || g.includes('hypert'))   return { sets: 4, reps: '8-12' };
+  if (g.includes('fat')      || g.includes('lose'))     return { sets: 3, reps: '12-15'};
+  return { sets: 3, reps: '8-12' };
+}
+
+// Scales a template exercise's sets/reps toward a goal without being too aggressive —
+// keeps isolation work higher and only shifts the rep range one bracket.
+function scaleExForGoal(sets, reps, goal) {
+  if (!goal || goal === 'General fitness') return { sets, reps };
+  const lower = parseInt(String(reps).split('-')[0]);
+  const g = goal.toLowerCase();
+  if (g.includes('stronger') || g.includes('strength')) {
+    if (lower <= 6)  return { sets: Math.max(sets, 4), reps: '3-5'   };
+    if (lower <= 10) return { sets: Math.max(sets, 3), reps: '5-8'   };
+    return { sets, reps: '8-10' };
+  }
+  if (g.includes('muscle') || g.includes('hypert')) {
+    if (lower <= 5)  return { sets, reps: '6-8'   };
+    if (lower >= 15) return { sets, reps: '12-15' };
+    return { sets, reps };
+  }
+  if (g.includes('fat') || g.includes('lose')) {
+    if (lower <= 6)  return { sets, reps: '10-12' };
+    if (lower <= 10) return { sets, reps: '12-15' };
+    return { sets, reps: '15-20' };
+  }
+  return { sets, reps };
+}
+
 function initDayExercises(r) {
+  const goal = r.goal || userProfile.goal || 'General fitness';
   r.days.forEach(d => {
-    if (!d.exercises) d.exercises = getExercisesForDay(d.label).map(e => ({...e}));
+    if (!d.exercises) {
+      d.exercises = getExercisesForDay(d.label).map(e => {
+        const scaled = scaleExForGoal(e.sets, e.reps, goal);
+        return { ...e, sets: scaled.sets, reps: scaled.reps };
+      });
+    }
   });
 }
 
@@ -6017,7 +6082,7 @@ function renderDayList(r) {
               <i class="ti ti-grip-vertical rd-ex-grip" ontouchstart="exTouchStart(event,${i},${ei})"></i>
               <div class="rd-ex-dot"></div>
               <div class="rd-ex-name">${e.name}</div>
-              <div class="rd-ex-sets">${e.sets}×${e.reps}</div>
+              <div class="rd-ex-sets" onclick="event.stopPropagation();openExSetsEditor(${i},${ei})" style="cursor:pointer;padding:3px 7px;border-radius:7px;border:0.5px solid var(--border2)">${e.sets}×${e.reps}</div>
               <button type="button" class="rd-swap-btn" onclick="event.stopPropagation();openSwapSheet(${i},${ei})">
                 <i class="ti ti-repeat" style="font-size:11px"></i> Swap
               </button>
@@ -6312,6 +6377,39 @@ function rdDeleteEx(dayIdx, exIdx) {
   r.days[dayIdx].exercises.splice(exIdx, 1);
   saveState();
   renderDayList(r);
+}
+
+// ── SETS & REPS EDITOR ──
+let exSetsCtx = null;
+function openExSetsEditor(dayIdx, exIdx) {
+  const r = userRoutines.find(r => r.id === viewingRoutineId);
+  if (!r) return;
+  const ex = r.days[dayIdx].exercises[exIdx];
+  exSetsCtx = { dayIdx, exIdx };
+  document.getElementById('ex-sets-exname').textContent = ex.name;
+  document.getElementById('ex-sets-val').textContent = ex.sets;
+  document.getElementById('ex-reps-val').value = ex.reps;
+  document.getElementById('ex-sets-overlay').style.display = 'flex';
+}
+function closeExSetsEditor() {
+  document.getElementById('ex-sets-overlay').style.display = 'none';
+  exSetsCtx = null;
+}
+function adjustExSets(delta) {
+  const el = document.getElementById('ex-sets-val');
+  el.textContent = Math.max(1, Math.min(10, (parseInt(el.textContent) || 3) + delta));
+}
+function saveExSets() {
+  if (!exSetsCtx) return;
+  const r = userRoutines.find(r => r.id === viewingRoutineId);
+  if (!r) return;
+  const ex = r.days[exSetsCtx.dayIdx].exercises[exSetsCtx.exIdx];
+  ex.sets = parseInt(document.getElementById('ex-sets-val').textContent) || 3;
+  ex.reps = document.getElementById('ex-reps-val').value.trim() || '8-12';
+  saveState();
+  renderDayList(r);
+  closeExSetsEditor();
+  showToast('Updated');
 }
 
 // ── DELETE WORKOUT DAY ──
@@ -6680,7 +6778,8 @@ function confirmExerciseAction(name, muscle) {
     day.exercises[swapCtx.exIdx] = { name, muscle, sets: old.sets, reps: old.reps, w: old.w };
     showToast('Swapped to ' + name);
   } else {
-    day.exercises.push({ name, muscle, sets: 3, reps: '8-12', w: 0 });
+    const cfg = goalRepConfig(r.goal || userProfile.goal);
+    day.exercises.push({ name, muscle, sets: cfg.sets, reps: cfg.reps, w: 0 });
     showToast(name + ' added');
   }
   saveState();
