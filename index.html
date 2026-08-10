@@ -2424,7 +2424,7 @@ function finishWorkout() {
     const r = userRoutines.find(r => r.id === pendingLogRoutine.routineId);
     if (r) {
       const day = r.days.find(d => d.label === pendingLogRoutine.dayLabel);
-      if (day) { day.done = true; day.today = false; }
+      if (day) { day.done = true; day.doneTimestamp = new Date().toISOString(); day.today = false; }
       if (r.days.every(d => d.done)) {
         r.week++;
         r.days.forEach(d => { d.done = false; d.today = false; });
@@ -4480,6 +4480,46 @@ function toggleLogEntry(id) {
   }
 }
 
+function promptDeleteLog(id) {
+  _showDeleteConfirm('this session', () => deleteLogEntry(id));
+}
+
+function deleteLogEntry(id) {
+  expandedLogId = null;
+  // Check user's own log first
+  const idx = logEntries.findIndex(e => e.id === id);
+  if (idx !== -1) {
+    const entry = logEntries[idx];
+    logEntries.splice(idx, 1);
+    if (entry.routineId) {
+      const r = userRoutines.find(r => r.id === entry.routineId);
+      if (r) {
+        const day = r.days.find(d => d.label === entry.dayLabel);
+        if (day) { day.done = false; day.doneTimestamp = null; }
+      }
+    }
+    saveState();
+    renderLog(); renderLogStats(); buildHeatmap(); renderRoutineList(); renderTodayCard();
+    showToast('Session removed');
+    return;
+  }
+  // Check client logs
+  for (const r of userRoutines) {
+    if (!r.clientLog) continue;
+    const ci = r.clientLog.findIndex(e => e.id === id);
+    if (ci !== -1) {
+      const entry = r.clientLog[ci];
+      r.clientLog.splice(ci, 1);
+      const day = r.days.find(d => d.label === entry.dayLabel);
+      if (day) { day.done = false; day.doneTimestamp = null; }
+      saveState();
+      renderLog(); renderRoutineList(); renderTodayCard();
+      showToast('Session removed');
+      return;
+    }
+  }
+}
+
 // ── DELETE ROUTINE CONFIRMATION ──
 let _pendingDeleteFn = null;
 function _showDeleteConfirm(label, fn) {
@@ -5897,6 +5937,33 @@ function recordMonthHistory(r) {
   }
 }
 
+// ── WEEK ROLLOVER ──
+// Auto-advances a routine's week counter when any done day was completed in a
+// previous calendar week (Mon–Sun). This prevents stale "Completed today" UI
+// and the "already logged" feeling when starting a fresh week.
+function checkWeekRollover(r) {
+  if (!r.days || !r.days.some(d => d.done)) return false;
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  const dow = now.getDay(); // 0=Sun
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1)); // back to Monday
+  // Treat done=true with no timestamp as stale (pre-migration data).
+  const anyStale = r.days.some(d =>
+    d.done && (!d.doneTimestamp || new Date(d.doneTimestamp) < weekStart)
+  );
+  if (!anyStale) return false;
+  r.week = (r.week || 1) + 1;
+  if (r.week > 4) {
+    recordMonthHistory(r);
+    r.month = (r.month || 1) + 1;
+    r.week = 1;
+    r.monthStartedAt = new Date().toISOString();
+  }
+  r.days.forEach(d => { d.done = false; d.today = false; d.doneTimestamp = null; });
+  r.days[0].today = true;
+  return true;
+}
+
 // ── TODAY CARD ──
 function renderTodayCard() {
   const el = document.getElementById('today-workout-card');
@@ -6757,7 +6824,11 @@ function addClientLogEntry(r, dayLabel, routineName) {
     })).filter(ex => ex.sets.length > 0)
   });
   saveState();
+  renderLog();
+  renderLogStats();
+  buildHeatmap();
   renderRoutineList();
+  renderMesocycleProgress();
 }
 
 function switchLogView(view) {
@@ -6770,29 +6841,56 @@ function switchLogView(view) {
   if (!isEx) renderNutritionView();
 }
 
+// Returns all sessions for the log tab — user's own + all client sessions —
+// sorted oldest→newest so reversing gives newest-first display order.
+function getAllLogEntries() {
+  const all = [...logEntries];
+  userRoutines.forEach(r => {
+    if (r.owner === 'client' && r.clientLog && r.clientLog.length) {
+      r.clientLog.forEach(e => all.push({
+        ...e,
+        _isClientSession: true,
+        _clientName: r.clientName || r.name
+      }));
+    }
+  });
+  return all.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+}
+
 function renderLog() {
   const el = document.getElementById('log-entries-list');
   if (!el) return;
-  if (!logEntries.length) {
+  const allEntries = getAllLogEntries();
+  if (!allEntries.length) {
     el.innerHTML = '<div style="color:var(--text4);font-size:13px;text-align:center;padding:40px 0 20px">No workouts logged yet.<br>Complete a workout to see it here.</div>';
     return;
   }
-  el.innerHTML = [...logEntries].reverse().map((e, i) => {
+  el.innerHTML = [...allEntries].reverse().map((e, i) => {
     const isOpen = expandedLogId === e.id;
     let detail = '';
-    if (isOpen && e.exercises && e.exercises.length) {
-      detail = `<div style="margin-top:10px;border-top:0.5px solid var(--border2);padding-top:10px;display:flex;flex-direction:column;gap:6px">
-        ${e.exercises.map(ex=>`
+    if (isOpen) {
+      const exRows = (e.exercises || []).length
+        ? e.exercises.map(ex => `
           <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
             <div style="font-size:12px;font-weight:600;color:var(--text2);min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ex.name}</div>
             <div style="font-size:11px;color:var(--text4);flex-shrink:0">${ex.sets.map(s=>(s.warmup?'W:':s.drop?'↓':'')+s.w+'×'+s.reps).join(', ')}</div>
-          </div>`).join('')}
+          </div>`).join('')
+        : '';
+      detail = `<div style="margin-top:10px;border-top:0.5px solid var(--border2);padding-top:10px;display:flex;flex-direction:column;gap:6px">
+        ${exRows}
+        <button type="button" onclick="event.stopPropagation();promptDeleteLog(${e.id})"
+          style="margin-top:8px;align-self:flex-start;background:none;border:0.5px solid var(--border2);border-radius:8px;padding:5px 11px;font-size:11px;font-weight:600;color:var(--text4);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px">
+          <i class="ti ti-trash" style="font-size:12px"></i> Delete session
+        </button>
       </div>`;
     }
+    const clientBadge = e._isClientSession
+      ? ` <span style="display:inline-block;font-size:10px;font-weight:700;background:rgba(90,140,220,.12);color:#5a8cdc;border:0.5px solid rgba(90,140,220,.3);border-radius:5px;padding:1px 5px;vertical-align:middle;letter-spacing:.03em">${e._clientName}</span>`
+      : '';
     return `
     <div class="sess-card${i===0?' today-c':''}" id="log-entry-${e.id}" onclick="toggleLogEntry(${e.id})">
       <div style="flex:1;min-width:0">
-        <div class="sc-name">${e.dayLabel}${i===0?' <span class="today-badge">Latest</span>':''}</div>
+        <div class="sc-name">${e.dayLabel}${i===0?' <span class="today-badge">Latest</span>':''}${clientBadge}</div>
         <div class="sc-date">${e.date} · ${e.routineName}</div>
         <div class="sc-pills">
           <span class="sp v">${Math.round(e.vol).toLocaleString()} lbs</span>
@@ -7523,7 +7621,10 @@ function loadState() {
       if (!rt.owner)      rt.owner      = 'self';
       if (!rt.clientName) rt.clientName = '';
       if (!rt.clientLog)  rt.clientLog  = [];
-      (rt.days || []).forEach(d => { if (d.variant === undefined) d.variant = null; });
+      (rt.days || []).forEach(d => {
+        if (d.variant === undefined) d.variant = null;
+        if (d.doneTimestamp === undefined) d.doneTimestamp = null;
+      });
     });
     if (n) nextRoutineId = parseInt(n);
     if (l) logEntries = JSON.parse(l);
@@ -7588,6 +7689,11 @@ async function _bootWithEmail(email) {
       }
     } catch(e) {}
   }
+
+  // Auto-advance any routines whose done flags are from a previous calendar week
+  let _weekChanged = false;
+  userRoutines.forEach(r => { if (checkWeekRollover(r)) _weekChanged = true; });
+  if (_weekChanged) saveState();
 
   // Hide loading overlay — kept up during async Firebase fetch above
   const lo = document.getElementById('auth-loading');
