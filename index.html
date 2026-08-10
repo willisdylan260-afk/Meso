@@ -1853,24 +1853,6 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
     </div>
   </div>
 
-  <!-- Delete routine confirmation -->
-  <div class="overlay" id="confirm-delete-overlay" onclick="if(event.target===this)cancelDeleteRoutine()">
-    <div class="sheet" style="padding-bottom:max(24px,env(safe-area-inset-bottom))">
-      <div class="sheet-handle"></div>
-      <div style="text-align:center;padding:8px 0 20px">
-        <div style="width:48px;height:48px;border-radius:50%;background:#2a0e0e;border:0.5px solid #7a2020;display:flex;align-items:center;justify-content:center;margin:0 auto 14px">
-          <i class="ti ti-trash" style="font-size:20px;color:var(--red)"></i>
-        </div>
-        <div style="font-size:17px;font-weight:700;color:var(--text);margin-bottom:6px">Delete routine?</div>
-        <div id="confirm-delete-name" style="font-size:13px;color:var(--text4)"></div>
-        <div style="font-size:12px;color:var(--text5);margin-top:4px">This cannot be undone.</div>
-      </div>
-      <div style="display:flex;gap:10px">
-        <button type="button" onclick="cancelDeleteRoutine()" style="flex:1;background:var(--card2);border:0.5px solid var(--border);border-radius:14px;color:var(--text3);font-size:15px;font-weight:600;padding:15px;cursor:pointer;font-family:inherit">Cancel</button>
-        <button type="button" onclick="executePendingDelete()" style="flex:1;background:#2a0e0e;border:0.5px solid #7a2020;border-radius:14px;color:var(--red);font-size:15px;font-weight:700;padding:15px;cursor:pointer;font-family:inherit">Delete</button>
-      </div>
-    </div>
-  </div>
 
   <div class="overlay" id="swap-overlay" onclick="handleSwapOverlayClick(event)">
     <div class="sheet" style="max-height:88%;display:flex;flex-direction:column">
@@ -4483,7 +4465,7 @@ function toggleLogEntry(id) {
 }
 
 function promptDeleteLog(id) {
-  _showDeleteConfirm('this session', () => deleteLogEntry(id));
+  _showDeleteConfirm('this session', () => deleteLogEntry(id), 'Delete session?');
 }
 
 function deleteLogEntry(id) {
@@ -4524,9 +4506,10 @@ function deleteLogEntry(id) {
 
 // ── DELETE ROUTINE CONFIRMATION ──
 let _pendingDeleteFn = null;
-function _showDeleteConfirm(label, fn) {
+function _showDeleteConfirm(label, fn, title) {
   _pendingDeleteFn = fn;
   document.getElementById('confirm-delete-name').textContent = label;
+  document.getElementById('confirm-delete-title').textContent = title || 'Are you sure?';
   document.getElementById('confirm-delete-overlay').classList.add('show');
 }
 function executePendingDelete() {
@@ -4536,7 +4519,7 @@ function executePendingDelete() {
 function promptDeleteRoutine() {
   const r = userRoutines.find(r => r.id === viewingRoutineId);
   if (!r) return;
-  _showDeleteConfirm('"' + r.name + '"', deleteRoutine);
+  _showDeleteConfirm('"' + r.name + '"', deleteRoutine, 'Delete routine?');
 }
 function cancelDeleteRoutine() {
   _pendingDeleteFn = null;
@@ -6645,7 +6628,7 @@ function rdDeleteDay(dayIdx) {
     renderDayList(r);
     renderRoutineList();
     document.getElementById('rd-meta').textContent = r.daysPerWeek + ' days/week · ' + r.goal;
-  });
+  }, 'Delete workout day?');
 }
 
 // ── ADD WORKOUT DAY ──
@@ -8266,5 +8249,23 @@ function applyUpdate() {
   });
 }
 </script>
+<!-- Global delete / discard confirmation — position:fixed so it works on any active screen -->
+<div class="overlay" id="confirm-delete-overlay" style="position:fixed" onclick="if(event.target===this)cancelDeleteRoutine()">
+  <div class="sheet" style="padding-bottom:max(24px,env(safe-area-inset-bottom))">
+    <div class="sheet-handle"></div>
+    <div style="text-align:center;padding:8px 0 20px">
+      <div style="width:48px;height:48px;border-radius:50%;background:#2a0e0e;border:0.5px solid #7a2020;display:flex;align-items:center;justify-content:center;margin:0 auto 14px">
+        <i class="ti ti-trash" style="font-size:20px;color:var(--red)"></i>
+      </div>
+      <div style="font-size:17px;font-weight:700;color:var(--text);margin-bottom:6px" id="confirm-delete-title">Are you sure?</div>
+      <div id="confirm-delete-name" style="font-size:13px;color:var(--text4)"></div>
+      <div style="font-size:12px;color:var(--text5);margin-top:4px">This cannot be undone.</div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button type="button" onclick="cancelDeleteRoutine()" style="flex:1;background:var(--card2);border:0.5px solid var(--border);border-radius:14px;color:var(--text3);font-size:15px;font-weight:600;padding:15px;cursor:pointer;font-family:inherit">Cancel</button>
+      <button type="button" onclick="executePendingDelete()" style="flex:1;background:#2a0e0e;border:0.5px solid #7a2020;border-radius:14px;color:var(--red);font-size:15px;font-weight:700;padding:15px;cursor:pointer;font-family:inherit">Delete</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
