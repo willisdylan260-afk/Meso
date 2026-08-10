@@ -1909,7 +1909,7 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
         <div class="wkt-elapsed" id="wkt-elapsed">0:00 elapsed</div>
         <div class="wkt-client-banner" id="wkt-client-banner" style="display:none"></div>
       </div>
-      <button type="button" style="background:var(--card);border:0.5px solid var(--border);border-radius:11px;color:var(--text4);font-size:12px;padding:7px 13px;cursor:pointer;font-family:inherit" onclick="goScreen('screen-app')"><i class="ti ti-arrow-left"></i> Back</button>
+      <button type="button" style="background:var(--card);border:0.5px solid var(--border);border-radius:11px;color:var(--text4);font-size:12px;padding:7px 13px;cursor:pointer;font-family:inherit" onclick="confirmDiscardWorkout()"><i class="ti ti-arrow-left"></i> Back</button>
     </div>
     <div class="wkt-stats">
       <div class="ws-cell"><div class="lbl">Volume</div><div class="val teal" id="wkt-vol">0 lbs</div></div>
@@ -1933,6 +1933,24 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
   <div class="wkt-footer">
     <button type="button" class="add-ex-btn" onclick="openWktAddSheet()"><i class="ti ti-plus"></i> Exercise</button>
     <button type="button" class="finish-btn" onclick="finishWorkout()">Finish workout</button>
+  </div>
+
+  <!-- Discard workout confirmation -->
+  <div class="overlay" id="wkt-discard-overlay" onclick="if(event.target===this)closeDiscardConfirm()">
+    <div class="sheet" style="padding-bottom:max(24px,env(safe-area-inset-bottom))">
+      <div class="sheet-handle"></div>
+      <div style="text-align:center;padding:8px 0 20px">
+        <div style="width:48px;height:48px;border-radius:50%;background:rgba(180,100,0,.15);border:0.5px solid rgba(200,120,0,.35);display:flex;align-items:center;justify-content:center;margin:0 auto 14px">
+          <i class="ti ti-alert-triangle" style="font-size:22px;color:#e09040"></i>
+        </div>
+        <div style="font-size:17px;font-weight:700;color:var(--text);margin-bottom:6px">Discard workout?</div>
+        <div style="font-size:13px;color:var(--text4)">Your progress won't be saved.</div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button type="button" onclick="closeDiscardConfirm()" style="flex:1;background:var(--card2);border:0.5px solid var(--border);border-radius:14px;color:var(--text3);font-size:15px;font-weight:600;padding:15px;cursor:pointer;font-family:inherit">Keep going</button>
+        <button type="button" onclick="discardWorkout()" style="flex:1;background:rgba(180,80,0,.12);border:0.5px solid rgba(200,100,0,.35);border-radius:14px;color:#e09040;font-size:15px;font-weight:700;padding:15px;cursor:pointer;font-family:inherit">Discard</button>
+      </div>
+    </div>
   </div>
 
   <!-- Add exercise during workout sheet -->
@@ -4871,6 +4889,18 @@ function stopWorkout() {
   clearActiveWorkout();
   wktStart = null;
   document.getElementById('rest-banner').style.display = 'none';
+}
+function confirmDiscardWorkout() {
+  document.getElementById('wkt-discard-overlay').classList.add('show');
+}
+function closeDiscardConfirm() {
+  document.getElementById('wkt-discard-overlay').classList.remove('show');
+}
+function discardWorkout() {
+  closeDiscardConfirm();
+  stopWorkout();
+  pendingLogRoutine = null;
+  goScreen('screen-app');
 }
 function startRest(s = 90) {
   clearInterval(restIv);
