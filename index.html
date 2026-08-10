@@ -3739,11 +3739,6 @@ function renderMonthlyHistory() {
 // FRIENDS
 // ─────────────────────────────────────────
 const DEMO_USERS = [
-  { username:'jaker', name:'Jake R.', initials:'JR', streak:7,  weeklyWorkouts:4, weeklyVol:61800,
-    activities:[
-      {id:'jr-1', type:'workout', text:'Completed Pull Day B',   detail:'54 min · 8 exercises',    ts:-2},
-      {id:'jr-2', type:'pr',      text:'New PR on Barbell Row',  detail:'185 × 5 · +10 lbs',       ts:-27},
-    ]},
   { username:'saram', name:'Sara M.', initials:'SM', streak:12, weeklyWorkouts:5, weeklyVol:89400,
     activities:[
       {id:'sm-1', type:'pr',      text:'Set a PR on Deadlift',   detail:'245 × 3 · Personal best', ts:-5},
@@ -3765,7 +3760,7 @@ const DEMO_USERS = [
     ]},
 ];
 
-const REACTION_SEEDS = {'jr-1':3,'sm-1':7,'mt-1':12,'aw-2':4};
+const REACTION_SEEDS = {'sm-1':7,'mt-1':12,'aw-2':4};
 
 function generateUsername(name) {
   const base = (name||'user').toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,10) || 'user';
@@ -3773,23 +3768,12 @@ function generateUsername(name) {
 }
 
 function initFriendsData() {
+  // Purge the old Jake demo shared routine if it was previously seeded
+  const beforePurge = sharedRoutinesReceived.length;
+  sharedRoutinesReceived = sharedRoutinesReceived.filter(r => r.id !== 'demo-share-1');
+  if (sharedRoutinesReceived.length !== beforePurge) saveState();
   if (!sharedSeeded) {
     sharedSeeded = true;
-    if (!sharedRoutinesReceived.some(r=>r.id==='demo-share-1')) {
-      sharedRoutinesReceived = [{
-        id:'demo-share-1', from:'jaker', fromName:'Jake R.',
-        routineName:"Jake's PPL Split",
-        routine:{
-          name:"Jake's PPL Split", daysPerWeek:3, goal:'Muscle', week:1,
-          days:[
-            {label:'Push Day', exercises:[{name:'Bench Press',sets:4,reps:'8-10',muscle:'Chest'},{name:'Overhead Press',sets:3,reps:'10-12',muscle:'Shoulders'},{name:'Tricep Pushdown',sets:3,reps:'12-15',muscle:'Triceps'}]},
-            {label:'Pull Day', exercises:[{name:'Pull-up',sets:4,reps:'6-10',muscle:'Back'},{name:'Cable Row',sets:3,reps:'10-12',muscle:'Back'},{name:'Bicep Curl',sets:3,reps:'12-15',muscle:'Biceps'}]},
-            {label:'Leg Day', exercises:[{name:'Squat',sets:4,reps:'8-10',muscle:'Quads'},{name:'Romanian Deadlift',sets:3,reps:'10-12',muscle:'Hamstrings'},{name:'Leg Press',sets:3,reps:'12-15',muscle:'Quads'}]},
-          ]
-        },
-        at: Date.now() - 86400000
-      }, ...sharedRoutinesReceived];
-    }
     saveState();
   }
   if (!userProfile.username) {
