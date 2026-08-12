@@ -5599,13 +5599,26 @@ function getDayShort(r, d, i) {
 // Prefers the actual calendar weekday over the sequential "today" flag so
 // the app always shows the correct day even if the user didn't log yesterday.
 function getActiveDay(r) {
+  const WD_ORDER = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const todayShort = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date().getDay()];
   const weekdays = WEEKDAY_MAPS[r.daysPerWeek] || [];
-  const calMatch = r.days.find((d, i) => {
+  // 1. Today's scheduled day if not yet done
+  const calToday = r.days.find((d, i) => {
     const wd = d.weekday || weekdays[i] || '';
     return wd === todayShort && !d.done;
   });
-  return calMatch || r.days.find(d => !d.done) || r.days[0];
+  if (calToday) return calToday;
+  // 2. Next upcoming undone day this week (by calendar order, after today)
+  const todayOrd = WD_ORDER.indexOf(todayShort);
+  if (todayOrd !== -1) {
+    const upcoming = r.days
+      .map((d, i) => ({ d, wd: d.weekday || weekdays[i] || '' }))
+      .filter(({ d, wd }) => !d.done && WD_ORDER.indexOf(wd) > todayOrd)
+      .sort((a, b) => WD_ORDER.indexOf(a.wd) - WD_ORDER.indexOf(b.wd));
+    if (upcoming.length) return upcoming[0].d;
+  }
+  // 3. First undone day overall (wrap-around or next week)
+  return r.days.find(d => !d.done) || r.days[0];
 }
 
 // ─────────────────────────────────────────
@@ -5991,6 +6004,7 @@ function renderTodayCard() {
   const otherDayPills = (excludeIdx) => {
     const WD_ORDER = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
     const wds = WEEKDAY_MAPS[active.daysPerWeek] || [];
+    const todayOrd = WD_ORDER.indexOf(todayShort);
     const others = active.days
       .map((d, i) => ({d, i}))
       .filter(({i}) => i !== excludeIdx)
@@ -5999,16 +6013,34 @@ function renderTodayCard() {
         WD_ORDER.indexOf(b.d.weekday || wds[b.i] || '')
       );
     if (!others.length) return '';
-    const pills = others.map(({d, i}) =>
-      `<button type="button" onclick="startRoutineDay(${active.id},${i})"
+    const missed = others.filter(({d, i}) => {
+      const ord = WD_ORDER.indexOf(d.weekday || wds[i] || '');
+      return !d.done && ord !== -1 && ord < todayOrd;
+    });
+    const missedNotice = missed.length
+      ? `<div style="margin-bottom:8px;display:flex;flex-direction:column;gap:4px">
+          ${missed.map(({d, i}) => {
+            const wd = d.weekday || wds[i] || '';
+            return `<div style="font-size:12px;color:#e09040;display:flex;align-items:center;gap:5px">
+              <i class="ti ti-alert-triangle" style="font-size:11px;flex-shrink:0"></i>
+              <span>${wd}'s ${d.label} session was missed — tap the pill to log it</span>
+            </div>`;
+          }).join('')}
+        </div>`
+      : '';
+    const pills = others.map(({d, i}) => {
+      const wd = d.weekday || wds[i] || '';
+      const isMissed = !d.done && WD_ORDER.indexOf(wd) !== -1 && WD_ORDER.indexOf(wd) < todayOrd;
+      return `<button type="button" onclick="startRoutineDay(${active.id},${i})"
         style="padding:6px 12px;font-size:12px;font-weight:600;border-radius:9px;
-        border:0.5px solid ${d.done?'var(--accent-border)':'var(--border)'};
-        background:${d.done?'var(--accent-dim)':'var(--card)'};
-        color:${d.done?'var(--accent-dark)':'var(--text4)'};
-        cursor:pointer;font-family:inherit;white-space:nowrap">${d.label.split(' ')[0]}${d.done?' ✓':''}</button>`
-    ).join('');
+        border:0.5px solid ${d.done?'var(--accent-border)':isMissed?'rgba(180,100,0,.35)':'var(--border)'};
+        background:${d.done?'var(--accent-dim)':isMissed?'rgba(180,100,0,.08)':'var(--card)'};
+        color:${d.done?'var(--accent-dark)':isMissed?'#e09040':'var(--text4)'};
+        cursor:pointer;font-family:inherit;white-space:nowrap">${d.label.split(' ')[0]}${d.done?' ✓':''}</button>`;
+    }).join('');
     return `<div style="margin-top:10px;padding-top:10px;border-top:0.5px solid var(--border2)">
       <div style="font-size:10px;color:var(--text5);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Other sessions</div>
+      ${missedNotice}
       <div style="display:flex;flex-wrap:wrap;gap:5px">${pills}</div>
     </div>`;
   };
@@ -6119,6 +6151,8 @@ function renderLogActiveCard() {
   const todayDisplayLabel = getDayDisplayLabel(active, todayDay, todayIdx);
   const WD_ORDER = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const activeWds = WEEKDAY_MAPS[active.daysPerWeek] || [];
+  const todayShortLog = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date().getDay()];
+  const todayOrdLog = WD_ORDER.indexOf(todayShortLog);
   const otherDays = active.days
     .map((d, i) => ({d, i}))
     .filter(({i}) => i !== todayIdx)
@@ -6126,18 +6160,36 @@ function renderLogActiveCard() {
       WD_ORDER.indexOf(a.d.weekday || activeWds[a.i] || '') -
       WD_ORDER.indexOf(b.d.weekday || activeWds[b.i] || '')
     );
+  const missedLog = otherDays.filter(({d, i}) => {
+    const ord = WD_ORDER.indexOf(d.weekday || activeWds[i] || '');
+    return !d.done && ord !== -1 && ord < todayOrdLog;
+  });
+  const missedNoticeLog = missedLog.length
+    ? `<div style="margin-bottom:8px;display:flex;flex-direction:column;gap:4px">
+        ${missedLog.map(({d, i}) => {
+          const wd = d.weekday || activeWds[i] || '';
+          return `<div style="font-size:12px;color:#e09040;display:flex;align-items:center;gap:5px">
+            <i class="ti ti-alert-triangle" style="font-size:11px;flex-shrink:0"></i>
+            <span>${wd}'s ${d.label} session was missed — tap the pill to log it</span>
+          </div>`;
+        }).join('')}
+      </div>`
+    : '';
   const otherPills = otherDays.length ? `
     <div style="margin-top:10px;padding-top:10px;border-top:0.5px solid rgba(255,255,255,.06)">
       <div style="font-size:10px;color:var(--text5);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Other sessions</div>
+      ${missedNoticeLog}
       <div style="display:flex;flex-wrap:wrap;gap:5px">
-        ${otherDays.map(({d, i}) =>
-          `<button type="button" onclick="startRoutineDay(${active.id},${i})"
+        ${otherDays.map(({d, i}) => {
+          const wd = d.weekday || activeWds[i] || '';
+          const isMissed = !d.done && WD_ORDER.indexOf(wd) !== -1 && WD_ORDER.indexOf(wd) < todayOrdLog;
+          return `<button type="button" onclick="startRoutineDay(${active.id},${i})"
             style="padding:5px 11px;font-size:12px;font-weight:600;border-radius:9px;
-            border:0.5px solid ${d.done?'var(--accent-border)':'var(--border)'};
-            background:${d.done?'var(--accent-dim)':'var(--card2)'};
-            color:${d.done?'var(--accent-dark)':'var(--text4)'};
-            cursor:pointer;font-family:inherit;white-space:nowrap">${d.label.split(' ')[0]}${d.done?' ✓':''}</button>`
-        ).join('')}
+            border:0.5px solid ${d.done?'var(--accent-border)':isMissed?'rgba(180,100,0,.35)':'var(--border)'};
+            background:${d.done?'var(--accent-dim)':isMissed?'rgba(180,100,0,.08)':'var(--card2)'};
+            color:${d.done?'var(--accent-dark)':isMissed?'#e09040':'var(--text4)'};
+            cursor:pointer;font-family:inherit;white-space:nowrap">${d.label.split(' ')[0]}${d.done?' ✓':''}</button>`;
+        }).join('')}
       </div>
     </div>` : '';
   el.innerHTML = `
