@@ -2969,7 +2969,7 @@ function getProgressLogSource() {
 }
 // ── Returns the routine to use for mesocycle/goal context in progress tab ──
 function getProgressRoutine() {
-  if (progressProfileId === null) return userRoutines.find(r => r.active) || null;
+  if (progressProfileId === null) return userRoutines.find(r => r.active && r.owner !== 'client') || null;
   return userRoutines.find(r => r.id === progressProfileId) || null;
 }
 // ── Returns the log source to use for PR detection during an active workout ──
@@ -3688,7 +3688,7 @@ function renderMonthlyHistory() {
   const allMonths = [];
   const routinesToShow = progressProfileId !== null
     ? userRoutines.filter(r => r.id === progressProfileId)
-    : userRoutines;
+    : userRoutines.filter(r => r.owner !== 'client');
   routinesToShow.forEach(r => {
     (r.monthHistory || []).forEach(m => allMonths.push({routineName: r.name, ...m}));
   });
@@ -5913,8 +5913,9 @@ function initDayExercises(r) {
 function recordMonthHistory(r) {
   if (!r.monthHistory) r.monthHistory = [];
   const since = r.monthStartedAt || null;
-  const entries = logEntries.filter(e =>
-    e.routineName === r.name && (!since || e.timestamp >= since)
+  const logSrc = r.owner === 'client' ? (r.clientLog || []) : logEntries;
+  const entries = logSrc.filter(e =>
+    e.routineId === r.id && (!since || e.timestamp >= since)
   );
   const totalVol = Math.round(entries.reduce((s, e) => s + (e.vol || 0), 0));
   const goals = userProfile.goals?.[r.id] || {};
