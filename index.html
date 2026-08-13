@@ -343,7 +343,7 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
 .wk-labels{display:grid;grid-template-columns:80px repeat(4,1fr);gap:6px;margin-bottom:8px}
 .wk-lbl{font-size:10px;color:var(--text5);text-transform:uppercase;letter-spacing:.06em;text-align:center}
 .wk-lbl.cur{color:var(--accent)}
-.set-row-grid{display:grid;grid-template-columns:80px repeat(4,1fr);gap:6px;align-items:center;flex:1;min-width:0}
+.set-row-grid{display:grid;grid-template-columns:95px repeat(4,1fr);gap:6px;align-items:center;flex:1;min-width:0}
 .set-row-wrap{display:flex;align-items:center;gap:4px;margin-bottom:6px}
 .drop-row-wrap{margin-left:14px;margin-top:-2px}
 .wup-num{color:#4a9a5a}
@@ -366,6 +366,8 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
 .w-input{background:transparent;border:none;border-bottom:1px solid #2e2e2e;color:var(--text2);font-size:13px;font-weight:600;width:36px;text-align:center;outline:none;font-family:inherit;padding:2px 0;transition:border-color .15s}
 .w-input:focus{border-bottom-color:var(--accent)}
 .w-unit{font-size:11px;color:#3a3a3a}
+.bw-toggle{font-size:10px;font-weight:700;letter-spacing:.04em;padding:2px 5px;border-radius:5px;border:0.5px solid var(--border);background:transparent;color:var(--text5);cursor:pointer;font-family:inherit;flex-shrink:0;line-height:1.4;transition:all .15s}
+.bw-toggle.active{background:rgba(46,204,113,.12);border-color:rgba(46,204,113,.35);color:var(--accent)}
 .rep-box{background:var(--card2);border:0.5px solid var(--border);border-radius:9px;height:46px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:all .12s}
 .rep-box:active{transform:scale(.94)}
 .rep-box.logged{background:var(--accent-dim);border-color:var(--accent-border)}
@@ -1193,7 +1195,7 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
           <div id="mesocycle-body"></div>
         </div>
         <div class="prog-card" id="bw-progress-card">
-          <div class="prog-card-title"><span>Bodyweight</span><div id="goal-chip-bw"></div></div>
+          <div class="prog-card-title"><span>This Mesocycle's Bodyweight</span><div id="goal-chip-bw"></div></div>
           <div id="goal-input-bw" style="display:none"></div>
           <div id="bw-card-body"></div>
         </div>
@@ -3435,34 +3437,91 @@ function logBodyweight() {
     date: now.toLocaleDateString('en-US', {month:'short', day:'numeric'}),
     weight: val
   });
+  // Mirror to active routine's mesoBW so BW sets have the correct reference weight
+  const activeR = userRoutines.find(r => r.active && r.owner !== 'client');
+  if (activeR) activeR.mesoBW = val;
   saveState();
   renderBodyweightCard();
   showToast('Weight logged: ' + val + ' lbs');
 }
 
+function saveClientMesoBW() {
+  const input = document.getElementById('bw-meso-input');
+  if (!input) return;
+  const val = parseFloat(input.value);
+  if (!val || val < 50 || val > 700) { input.focus(); return; }
+  const r = userRoutines.find(r => r.id === progressProfileId);
+  if (r) { r.mesoBW = val; saveState(); renderBodyweightCard(); showToast('Bodyweight saved'); }
+}
+
+function saveOwnMesoBW() {
+  const input = document.getElementById('bw-meso-own-input');
+  if (!input) return;
+  const val = parseFloat(input.value);
+  if (!val || val < 50 || val > 700) { input.focus(); return; }
+  const activeR = userRoutines.find(r => r.active && r.owner !== 'client');
+  if (activeR) { activeR.mesoBW = val; saveState(); renderBodyweightCard(); showToast('Bodyweight saved'); }
+}
 
 function renderBodyweightCard() {
   const el = document.getElementById('bw-card-body');
   if (!el) return;
-  // Bodyweight is personal — not shown for client profiles
   const bwCard = document.getElementById('bw-progress-card');
-  if (bwCard) bwCard.style.display = progressProfileId !== null ? 'none' : '';
-  if (progressProfileId !== null) return;
-  const inputRow = `
-    <div style="display:flex;gap:8px;align-items:center;margin-top:12px">
-      <input id="bw-input" type="number" placeholder="Log today's weight" min="50" max="700" step="0.1"
+
+  // Client profile view — simple mesoBW edit
+  if (progressProfileId !== null) {
+    if (bwCard) bwCard.style.display = '';
+    const r = userRoutines.find(r => r.id === progressProfileId);
+    const cur = r ? r.mesoBW : null;
+    el.innerHTML = `
+      <div style="display:flex;gap:8px;align-items:center;margin-top:12px">
+        <input id="bw-meso-input" type="number" placeholder="${cur || 'Enter weight'}" value="${cur || ''}" min="50" max="700" step="0.1"
+               style="flex:1;background:var(--card2);border:0.5px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;padding:10px 12px;font-family:inherit;outline:none"
+               onkeydown="if(event.key==='Enter')saveClientMesoBW()">
+        <span style="color:var(--text3);font-size:13px;font-weight:600;flex-shrink:0">lbs</span>
+        <button onclick="saveClientMesoBW()"
+                style="background:var(--accent-dim);border:1px solid var(--accent-dark);border-radius:10px;color:var(--accent);font-size:13px;font-weight:600;padding:10px 14px;cursor:pointer;font-family:inherit;flex-shrink:0">
+          Save
+        </button>
+      </div>
+      ${cur ? `<div style="font-size:12px;color:var(--text5);margin-top:6px">Current: <span style="color:var(--text2);font-weight:600">${cur} lbs</span></div>` : '<div style="font-size:12px;color:var(--text5);margin-top:6px">No weight set for this mesocycle.</div>'}`;
+    return;
+  }
+
+  if (bwCard) bwCard.style.display = '';
+
+  // Own active routine mesoBW field
+  const activeR = userRoutines.find(r => r.active && r.owner !== 'client');
+  const curMesoBW = activeR ? activeR.mesoBW : null;
+  const mesoBWRow = `
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
+      <input id="bw-meso-own-input" type="number" placeholder="${curMesoBW || 'Enter weight'}" value="${curMesoBW || ''}" min="50" max="700" step="0.1"
              style="flex:1;background:var(--card2);border:0.5px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;padding:10px 12px;font-family:inherit;outline:none"
-             aria-label="Today's bodyweight in lbs"
-             onkeydown="if(event.key==='Enter')logBodyweight()">
+             onkeydown="if(event.key==='Enter')saveOwnMesoBW()">
       <span style="color:var(--text3);font-size:13px;font-weight:600;flex-shrink:0">lbs</span>
-      <button onclick="logBodyweight()"
+      <button onclick="saveOwnMesoBW()"
               style="background:var(--accent-dim);border:1px solid var(--accent-dark);border-radius:10px;color:var(--accent);font-size:13px;font-weight:600;padding:10px 14px;cursor:pointer;font-family:inherit;flex-shrink:0">
-        Log
+        Save
       </button>
     </div>`;
 
+  const logInputRow = `
+    <div style="margin-top:12px;padding-top:10px;border-top:0.5px solid var(--border2)">
+      <div style="font-size:10px;color:var(--text5);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Weight log</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="bw-input" type="number" placeholder="Log today's weight" min="50" max="700" step="0.1"
+               style="flex:1;background:var(--card2);border:0.5px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;padding:10px 12px;font-family:inherit;outline:none"
+               onkeydown="if(event.key==='Enter')logBodyweight()">
+        <span style="color:var(--text3);font-size:13px;font-weight:600;flex-shrink:0">lbs</span>
+        <button onclick="logBodyweight()"
+                style="background:var(--accent-dim);border:1px solid var(--accent-dark);border-radius:10px;color:var(--accent);font-size:13px;font-weight:600;padding:10px 14px;cursor:pointer;font-family:inherit;flex-shrink:0">
+          Log
+        </button>
+      </div>
+    </div>`;
+
   if (!bodyweightLog.length) {
-    el.innerHTML = '<div style="color:var(--text5);font-size:12px;margin-bottom:4px">No entries yet.</div>' + inputRow;
+    el.innerHTML = mesoBWRow + logInputRow;
     return;
   }
 
@@ -3473,7 +3532,6 @@ function renderBodyweightCard() {
   const diffColor = diff < 0 ? 'var(--accent)' : diff > 0 ? 'var(--red)' : 'var(--text3)';
   const chartData = bodyweightLog.slice(-10).map(e => ({ w: e.date, v: e.weight }));
 
-  // Goal status row
   const bwGoals = getGoals();
   let goalRowHtml = '';
   if (bwGoals.bodyweight) {
@@ -3486,7 +3544,8 @@ function renderBodyweightCard() {
   }
 
   el.innerHTML = `
-    <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:2px">
+    ${mesoBWRow}
+    <div style="display:flex;align-items:baseline;gap:8px;margin-top:10px;margin-bottom:2px">
       <span style="font-size:30px;font-weight:700;color:var(--text);letter-spacing:-.02em">${latest.weight}</span>
       <span style="font-size:14px;color:var(--text3)">lbs</span>
       ${bodyweightLog.length > 1 ? `<span style="font-size:12px;color:${diffColor};font-weight:600;margin-left:2px">${diffStr} total</span>` : ''}
@@ -3494,7 +3553,7 @@ function renderBodyweightCard() {
     <div style="font-size:11px;color:var(--text5);margin-bottom:${bwGoals.bodyweight?'4px':'10px'}">Last logged ${latest.date}</div>
     ${goalRowHtml}
     ${chartData.length > 1 ? `<div class="chart-area" id="bw-chart-area" style="margin-bottom:0"></div><div class="chart-labels" id="bw-chart-labels" style="margin-bottom:4px"></div>` : ''}
-    ${inputRow}`;
+    ${logInputRow}`;
 
   if (chartData.length > 1) {
     drawLineChart('bw-chart-area', 'bw-chart-labels', chartData, 'v', bwGoals.bodyweight || null);
@@ -4900,6 +4959,21 @@ function cycleRep(ei, si) {
   saveActiveWorkout();
 }
 function toggleEx(ei) { wktData[ei].open = !wktData[ei].open; renderWkt(); }
+function toggleBW(ei, si) {
+  const s = wktData[ei].sets[si];
+  s.w = s.w === 'BW' ? 0 : 'BW';
+  updateWktStats();
+  saveActiveWorkout();
+  renderWkt();
+}
+function toggleBWDrop(ei, si) {
+  const s = wktData[ei].sets[si].drop;
+  if (!s) return;
+  s.w = s.w === 'BW' ? 0 : 'BW';
+  updateWktStats();
+  saveActiveWorkout();
+  renderWkt();
+}
 function addSet(ei) {
   const last = wktData[ei].sets[wktData[ei].sets.length - 1];
   wktData[ei].sets.push({w: last.w, h: [null, null, null, null]});
@@ -5014,7 +5088,7 @@ function isPR(ei, si) {
   // Returns 'weight', 'rep', or '' (falsy). Truthy = any PR.
   const s = wktData[ei].sets[si];
   if (s.warmup) return '';
-  if (s.h[CUR] === null || s.w === 0) return '';
+  if (s.h[CUR] === null || s.w === 0 || s.w === 'BW') return '';
   const curW = s.w, curR = s.h[CUR];
   const exName = wktData[ei].name;
   let prevBestW = 0, prevBestReps = 0;
@@ -5053,10 +5127,10 @@ function getWktStats() {
     ex.sets.forEach((s, si) => {
       if (!s.warmup) {
         total++;
-        if (s.h[CUR] !== null) { done++; vol += s.w * s.h[CUR]; }
+        if (s.h[CUR] !== null) { done++; vol += (s.w === 'BW' ? 0 : (parseFloat(s.w) || 0)) * s.h[CUR]; }
         if (isPR(ei, si)) prs++;
       }
-      if (s.drop && s.drop.h[CUR] !== null) vol += s.drop.w * s.drop.h[CUR];
+      if (s.drop && s.drop.h[CUR] !== null) vol += (s.drop.w === 'BW' ? 0 : (parseFloat(s.drop.w) || 0)) * s.drop.h[CUR];
     });
   });
   return {vol, done, total, prs};
@@ -5110,9 +5184,9 @@ function fmtLastInline(last) {
   if (!last || !last.sets || !last.sets.length) return null;
   const sets = last.sets.filter(s => s.reps > 0);
   if (!sets.length) return null;
-  if (sets.length <= 4) return 'Last: ' + sets.map(s => s.w + '×' + s.reps).join(' · ');
-  const top = sets.reduce((a, b) => b.w > a.w ? b : a);
-  return `Last: ${sets.length} sets · top ${top.w}×${top.reps}`;
+  if (sets.length <= 4) return 'Last: ' + sets.map(s => (s.w === 'BW' ? 'BW' : s.w) + '×' + s.reps).join(' · ');
+  const top = sets.filter(s => s.w !== 'BW').reduce((a, b) => b.w > a.w ? b : a, sets[0]);
+  return `Last: ${sets.length} sets · top ${top.w === 'BW' ? 'BW' : top.w}×${top.reps}`;
 }
 
 function renderWkt() {
@@ -5148,12 +5222,15 @@ function renderWkt() {
       if (hasLast) {
         let lastRows = ex.lastOpen ? ex.last.sets.map((s, si) => {
           const curW = ex.sets[si] ? ex.sets[si].w : null;
-          const delta = curW !== null ? curW - s.w : null;
+          const isBWLast = s.w === 'BW';
+          const isBWCur = curW === 'BW';
+          const delta = (!isBWLast && !isBWCur && curW !== null) ? curW - s.w : null;
           const deltaHtml = delta === null ? '' :
             delta > 0 ? `<span class="last-delta up">+${delta} lbs today</span>` :
             delta < 0 ? `<span class="last-delta" style="color:var(--red)">${delta} lbs today</span>` :
             `<span class="last-delta same">same</span>`;
-          return `<div class="last-set-row"><span class="last-sn">S${si+1}</span><span class="last-perf">${s.w} lbs × ${s.reps} reps</span>${deltaHtml}</div>`;
+          const perfText = isBWLast ? `BW × ${s.reps} reps` : `${s.w} lbs × ${s.reps} reps`;
+          return `<div class="last-set-row"><span class="last-sn">S${si+1}</span><span class="last-perf">${perfText}</span>${deltaHtml}</div>`;
         }).join('') : '';
         lastSection = `<div class="last-hd" onclick="toggleLast(${ei})"><span class="last-lbl">Last session</span><i class="ti ti-chevron-down last-chev${ex.lastOpen ? ' open' : ''}"></i></div>${ex.lastOpen ? `<div style="margin-bottom:8px">${lastRows}</div>` : ''}`;
       }
@@ -5175,11 +5252,18 @@ function renderWkt() {
         const canPick = dropPickActive && !s.drop;
 
         // Main set row
+        const isBWSet = s.w === 'BW';
         html += `<div class="set-row-wrap${isWarmup ? ' wup-wrap' : ''}${canPick ? ' pick-target' : ''}"${canPick ? ` onclick="addDropToSet(${ei},${si})"` : ''}>`;
         html += `<div class="set-row-grid"><div class="set-info">`;
         html += `<span class="set-num${isWarmup ? ' wup-num' : ''}">${lbl}</span>`;
-        html += `<input class="w-input" type="number" value="${s.w}" min="0" step="5" oninput="wktData[${ei}].sets[${si}].w=parseFloat(this.value)||0;updateWktStats();saveActiveWorkout()">`;
-        html += `<span class="w-unit">lb</span></div>`;
+        if (isBWSet) {
+          html += `<span style="font-size:13px;font-weight:700;color:var(--accent);letter-spacing:.02em">BW</span>`;
+        } else {
+          html += `<input class="w-input" type="number" value="${s.w}" min="0" step="5" oninput="wktData[${ei}].sets[${si}].w=parseFloat(this.value)||0;updateWktStats();saveActiveWorkout()">`;
+          html += `<span class="w-unit">lb</span>`;
+        }
+        html += `<button type="button" class="bw-toggle${isBWSet?' active':''}" onclick="toggleBW(${ei},${si})">BW</button>`;
+        html += `</div>`;
         WEEKS.forEach((w, wi) => {
           const r = s.h[wi]; const isCur = wi === CUR;
           const pr = isCur && !isWarmup && isPR(ei, si);
@@ -5197,11 +5281,18 @@ function renderWkt() {
 
         // Drop set row
         if (s.drop) {
+          const isBWDrop = s.drop.w === 'BW';
           html += `<div class="set-row-wrap drop-row-wrap">`;
           html += `<div class="set-row-grid"><div class="set-info">`;
           html += `<span class="set-num drop-num">↓</span>`;
-          html += `<input class="w-input" type="number" value="${s.drop.w}" min="0" step="5" oninput="wktData[${ei}].sets[${si}].drop.w=parseFloat(this.value)||0;updateWktStats();saveActiveWorkout()">`;
-          html += `<span class="w-unit">lb</span></div>`;
+          if (isBWDrop) {
+            html += `<span style="font-size:13px;font-weight:700;color:var(--accent);letter-spacing:.02em">BW</span>`;
+          } else {
+            html += `<input class="w-input" type="number" value="${s.drop.w}" min="0" step="5" oninput="wktData[${ei}].sets[${si}].drop.w=parseFloat(this.value)||0;updateWktStats();saveActiveWorkout()">`;
+            html += `<span class="w-unit">lb</span>`;
+          }
+          html += `<button type="button" class="bw-toggle${isBWDrop?' active':''}" onclick="toggleBWDrop(${ei},${si})">BW</button>`;
+          html += `</div>`;
           WEEKS.forEach((w, wi) => {
             const r = s.drop.h[wi]; const isCur = wi === CUR;
             let cls = 'rep-box';
@@ -5628,7 +5719,7 @@ let userRoutines = [
   {
     id: 1, name: 'Push / Pull / Legs', splitType: 'Push / Pull / Legs',
     daysPerWeek: 6, goal: 'Build muscle', week: 1, month: 1, monthStartedAt: null, monthHistory: [], active: true,
-    notes: '',
+    notes: '', mesoBW: null,
     days: [
       { label: 'Push A', done: true },
       { label: 'Pull A', done: true },
@@ -7671,6 +7762,7 @@ function loadState() {
       if (!rt.owner)      rt.owner      = 'self';
       if (!rt.clientName) rt.clientName = '';
       if (!rt.clientLog)  rt.clientLog  = [];
+      if (rt.mesoBW === undefined) rt.mesoBW = null;
       (rt.days || []).forEach(d => {
         if (d.variant === undefined) d.variant = null;
         if (d.doneTimestamp === undefined) d.doneTimestamp = null;
@@ -8220,7 +8312,7 @@ function createRoutine() {
   const newRoutine = {
     id: nextRoutineId++,
     name, splitType: t.name, daysPerWeek: activePairs.length, goal,
-    week: 1, month: 1, monthStartedAt: new Date().toISOString(), monthHistory: [], active: false, notes: '',
+    week: 1, month: 1, monthStartedAt: new Date().toISOString(), monthHistory: [], active: false, notes: '', mesoBW: null,
     owner: nrOwner, clientName: nrOwner === 'client' ? nrClientName.trim() : '', clientLog: [],
     days: activePairs.map((p, i) => ({label: p.label, weekday: p.weekday, done: false, today: i === 0}))
   };
