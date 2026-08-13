@@ -343,7 +343,7 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
 .wk-labels{display:grid;grid-template-columns:80px repeat(4,1fr);gap:6px;margin-bottom:8px}
 .wk-lbl{font-size:10px;color:var(--text5);text-transform:uppercase;letter-spacing:.06em;text-align:center}
 .wk-lbl.cur{color:var(--accent)}
-.set-row-grid{display:grid;grid-template-columns:95px repeat(4,1fr);gap:6px;align-items:center;flex:1;min-width:0}
+.set-row-grid{display:grid;grid-template-columns:80px repeat(4,1fr);gap:6px;align-items:center;flex:1;min-width:0}
 .set-row-wrap{display:flex;align-items:center;gap:4px;margin-bottom:6px}
 .drop-row-wrap{margin-left:14px;margin-top:-2px}
 .wup-num{color:#4a9a5a}
@@ -366,8 +366,7 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
 .w-input{background:transparent;border:none;border-bottom:1px solid #2e2e2e;color:var(--text2);font-size:13px;font-weight:600;width:36px;text-align:center;outline:none;font-family:inherit;padding:2px 0;transition:border-color .15s}
 .w-input:focus{border-bottom-color:var(--accent)}
 .w-unit{font-size:11px;color:#3a3a3a}
-.bw-toggle{font-size:10px;font-weight:700;letter-spacing:.04em;padding:2px 5px;border-radius:5px;border:0.5px solid var(--border);background:transparent;color:var(--text5);cursor:pointer;font-family:inherit;flex-shrink:0;line-height:1.4;transition:all .15s}
-.bw-toggle.active{background:rgba(46,204,113,.12);border-color:rgba(46,204,113,.35);color:var(--accent)}
+.bw-active-num{color:var(--accent)}
 .rep-box{background:var(--card2);border:0.5px solid var(--border);border-radius:9px;height:46px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:all .12s}
 .rep-box:active{transform:scale(.94)}
 .rep-box.logged{background:var(--accent-dim);border-color:var(--accent-border)}
@@ -2415,7 +2414,7 @@ function startCustomWorkout() {
   wktData = [];
   const wktTitle = document.getElementById('wkt-title');
   if (wktTitle) wktTitle.textContent = 'Custom Workout';
-  openMoreMenuEi = null; dropPickModeEi = null; supersetPickEi = null;
+  openMoreMenuEi = null; dropPickModeEi = null; bwPickModeEi = null; supersetPickEi = null;
   goWorkout();
 }
 function finishWorkout() {
@@ -4872,6 +4871,7 @@ let restSecs = 0, restIv = null, wktStart = null, wktIv = null;
 let pendingLogRoutine = null;
 let openMoreMenuEi = null;
 let dropPickModeEi = null;
+let bwPickModeEi = null;
 let supersetPickEi = null;
 
 // ── Haptic feedback ──────────────────────────────
@@ -4959,21 +4959,6 @@ function cycleRep(ei, si) {
   saveActiveWorkout();
 }
 function toggleEx(ei) { wktData[ei].open = !wktData[ei].open; renderWkt(); }
-function toggleBW(ei, si) {
-  const s = wktData[ei].sets[si];
-  s.w = s.w === 'BW' ? 0 : 'BW';
-  updateWktStats();
-  saveActiveWorkout();
-  renderWkt();
-}
-function toggleBWDrop(ei, si) {
-  const s = wktData[ei].sets[si].drop;
-  if (!s) return;
-  s.w = s.w === 'BW' ? 0 : 'BW';
-  updateWktStats();
-  saveActiveWorkout();
-  renderWkt();
-}
 function addSet(ei) {
   const last = wktData[ei].sets[wktData[ei].sets.length - 1];
   wktData[ei].sets.push({w: last.w, h: [null, null, null, null]});
@@ -5003,6 +4988,7 @@ function removeExercise(ei) {
 function toggleMoreMenu(ei) {
   openMoreMenuEi = openMoreMenuEi === ei ? null : ei;
   dropPickModeEi = null;
+  bwPickModeEi = null;
   renderWkt();
 }
 
@@ -5041,6 +5027,22 @@ function addDropToSet(ei, si) {
 function removeDropSet(ei, si) {
   delete wktData[ei].sets[si].drop;
   renderWkt(); saveActiveWorkout();
+}
+function enterBWPickMode(ei) {
+  bwPickModeEi = ei;
+  openMoreMenuEi = null;
+  renderWkt();
+}
+function cancelBWPick() {
+  bwPickModeEi = null;
+  renderWkt();
+}
+function applyBWFromPick(ei, si) {
+  const s = wktData[ei].sets[si];
+  s.w = s.w === 'BW' ? 0 : 'BW';
+  updateWktStats();
+  saveActiveWorkout();
+  renderWkt();
 }
 function cycleDropRep(ei, si) {
   const drop = wktData[ei].sets[si].drop; if (!drop) return;
@@ -5239,8 +5241,13 @@ function renderWkt() {
         <div class="po-banner po-${po.type}"><i class="ti ${po.icon}"></i><span>${po.message}</span></div>
         ${lastSection}`;
 
+      const bwPickActive = bwPickModeEi === ei;
+
       if (dropPickActive) {
         html += `<div class="pick-banner"><i class="ti ti-arrow-down-circle" style="font-size:14px"></i> Tap a set to add a drop<button type="button" class="pick-cancel" onclick="cancelDropPick()">Cancel</button></div>`;
+      }
+      if (bwPickActive) {
+        html += `<div class="pick-banner"><span style="font-size:12px;font-weight:700;letter-spacing:.04em">BW</span> Tap a set to toggle bodyweight<button type="button" class="pick-cancel" onclick="cancelBWPick()">Cancel</button></div>`;
       }
 
       html += `<div class="wk-labels"><div class="wk-lbl">Set · wt</div>${WEEKS.map((w, i) => `<div class="wk-lbl${i === CUR ? ' cur' : ''}">${w}</div>`).join('')}</div>`;
@@ -5250,19 +5257,21 @@ function renderWkt() {
         const isWarmup = !!s.warmup;
         const lbl = isWarmup ? `W${++wNum}` : `S${++sNum}`;
         const canPick = dropPickActive && !s.drop;
+        const canBWPick = bwPickActive && !isWarmup;
 
         // Main set row
         const isBWSet = s.w === 'BW';
-        html += `<div class="set-row-wrap${isWarmup ? ' wup-wrap' : ''}${canPick ? ' pick-target' : ''}"${canPick ? ` onclick="addDropToSet(${ei},${si})"` : ''}>`;
+        const rowExtra = canPick ? ` pick-target` : canBWPick ? ` pick-target` : '';
+        const rowClick = canPick ? ` onclick="addDropToSet(${ei},${si})"` : canBWPick ? ` onclick="applyBWFromPick(${ei},${si})"` : '';
+        html += `<div class="set-row-wrap${isWarmup ? ' wup-wrap' : ''}${rowExtra}"${rowClick}>`;
         html += `<div class="set-row-grid"><div class="set-info">`;
-        html += `<span class="set-num${isWarmup ? ' wup-num' : ''}">${lbl}</span>`;
+        html += `<span class="set-num${isWarmup ? ' wup-num' : ''}${isBWSet ? ' bw-active-num' : ''}">${lbl}</span>`;
         if (isBWSet) {
           html += `<span style="font-size:13px;font-weight:700;color:var(--accent);letter-spacing:.02em">BW</span>`;
         } else {
           html += `<input class="w-input" type="number" value="${s.w}" min="0" step="5" oninput="wktData[${ei}].sets[${si}].w=parseFloat(this.value)||0;updateWktStats();saveActiveWorkout()">`;
           html += `<span class="w-unit">lb</span>`;
         }
-        html += `<button type="button" class="bw-toggle${isBWSet?' active':''}" onclick="toggleBW(${ei},${si})">BW</button>`;
         html += `</div>`;
         WEEKS.forEach((w, wi) => {
           const r = s.h[wi]; const isCur = wi === CUR;
@@ -5273,7 +5282,7 @@ function renderWkt() {
           if (ex.isNew && wi < CUR) cls += ' empty-new';
           const disp = (ex.isNew && wi < CUR) ? '—' : r !== null ? r : '—';
           const sub  = pr === 'rep' ? 'Rep PR' : pr ? 'PR' : r !== null ? 'done' : isCur ? 'tap' : '—';
-          html += `<div class="${cls}"${isCur && !canPick ? ` onclick="cycleRep(${ei},${si})"` : ''}><div class="rep-val">${disp}</div><div class="rep-sub">${sub}</div></div>`;
+          html += `<div class="${cls}"${isCur && !canPick && !canBWPick ? ` onclick="cycleRep(${ei},${si})"` : ''}><div class="rep-val">${disp}</div><div class="rep-sub">${sub}</div></div>`;
         });
         html += `</div>`;
         html += `<button type="button" class="rm-set-btn" onclick="event.stopPropagation();removeSet(${ei},${si})"><i class="ti ti-minus" style="font-size:9px"></i></button>`;
@@ -5291,7 +5300,6 @@ function renderWkt() {
             html += `<input class="w-input" type="number" value="${s.drop.w}" min="0" step="5" oninput="wktData[${ei}].sets[${si}].drop.w=parseFloat(this.value)||0;updateWktStats();saveActiveWorkout()">`;
             html += `<span class="w-unit">lb</span>`;
           }
-          html += `<button type="button" class="bw-toggle${isBWDrop?' active':''}" onclick="toggleBWDrop(${ei},${si})">BW</button>`;
           html += `</div>`;
           WEEKS.forEach((w, wi) => {
             const r = s.drop.h[wi]; const isCur = wi === CUR;
@@ -5317,6 +5325,7 @@ function renderWkt() {
         html += `<div class="more-menu">
           <button type="button" class="more-item" onclick="enterDropPickMode(${ei})"><span class="more-icon drop-icon">↓</span> Add drop set</button>
           <button type="button" class="more-item" onclick="addWarmupSet(${ei})"><span class="more-icon wup-icon">W</span> Add warm-up set</button>
+          <button type="button" class="more-item" onclick="enterBWPickMode(${ei})"><span class="more-icon" style="font-size:10px;font-weight:700;color:var(--accent)">BW</span> Bodyweight set</button>
           <button type="button" class="more-item" onclick="enterSupersetMode(${ei})"><i class="ti ti-arrows-exchange" style="font-size:14px;color:var(--accent-dark);width:20px;text-align:center"></i> Superset with another exercise</button>
           <button type="button" class="more-item" onclick="removeExercise(${ei})" style="color:var(--red)"><i class="ti ti-trash" style="font-size:14px;width:20px;text-align:center"></i> Remove exercise</button>
         </div>`;
@@ -6849,7 +6858,7 @@ function startRoutineDay(routineId, dayIdx) {
     } else { banner.style.display = 'none'; }
   }
   pendingLogRoutine = { routineId: r.id, dayLabel: day.label, week: CUR + 1 };
-  openMoreMenuEi = null; dropPickModeEi = null; supersetPickEi = null;
+  openMoreMenuEi = null; dropPickModeEi = null; bwPickModeEi = null; supersetPickEi = null;
   goWorkout();
 }
 function getLastSession(exerciseName, logSrc) {
