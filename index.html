@@ -4966,14 +4966,42 @@ function cycleRep(ei, si) {
 }
 function toggleEx(ei) { wktData[ei].open = !wktData[ei].open; renderWkt(); }
 function addSet(ei) {
-  const last = wktData[ei].sets[wktData[ei].sets.length - 1];
-  wktData[ei].sets.push({w: last.w, h: [null, null, null, null], rirH: [null, null, null, null]});
-  renderWkt();
-  saveActiveWorkout();
+  const ex = wktData[ei];
+  // Restore the most recently removed set if one was stashed this session
+  if (ex._stash && ex._stash.length > 0) {
+    ex.sets.push(ex._stash.pop());
+    showToast('Set restored');
+    renderWkt(); saveActiveWorkout();
+    return;
+  }
+  // Fresh set — hydrate previous-week columns from log history at this index
+  const last = ex.sets[ex.sets.length - 1];
+  const si = ex.sets.length;
+  const h = [null, null, null, null];
+  if (pendingLogRoutine) {
+    const { routineId, dayLabel } = pendingLogRoutine;
+    const r = userRoutines.find(rt => rt.id === routineId);
+    if (r) {
+      const src = r.owner === 'client' ? (r.clientLog || []) : logEntries;
+      for (let w = 0; w < CUR; w++) {
+        const entry = src.find(le =>
+          le.routineId === routineId && le.dayLabel === dayLabel && le.week === w + 1 &&
+          le.exercises && le.exercises.some(x => x.name === ex.name)
+        );
+        if (entry) {
+          const exLog = entry.exercises.find(x => x.name === ex.name);
+          if (exLog && exLog.sets[si]) h[w] = exLog.sets[si].reps;
+        }
+      }
+    }
+  }
+  ex.sets.push({w: last.w, h, rirH: [null, null, null, null]});
+  renderWkt(); saveActiveWorkout();
 }
 function removeSet(ei, si) {
   if (wktData[ei].sets.length <= 1) { showToast('Need at least one set'); return; }
-  wktData[ei].sets.splice(si, 1);
+  if (!wktData[ei]._stash) wktData[ei]._stash = [];
+  wktData[ei]._stash.push(wktData[ei].sets.splice(si, 1)[0]);
   renderWkt(); saveActiveWorkout();
 }
 function removeExercise(ei) {
