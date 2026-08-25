@@ -4744,6 +4744,10 @@ function resumeWorkout() {
   document.getElementById('recovery-overlay').classList.remove('show');
   CUR = snap.cur || 0;
   wktData = snap.wktData;
+  wktData.forEach(ex => ex.sets.forEach(s => {
+    if (!s.rirH) s.rirH = [null, null, null, null];
+    if (s.drop && !s.drop.rirH) s.drop.rirH = [null, null, null, null];
+  }));
   wktStart = snap.wktStart;
   pendingLogRoutine = snap.pendingLogRoutine;
   goScreen('screen-workout');
@@ -4873,6 +4877,8 @@ let openMoreMenuEi = null;
 let dropPickModeEi = null;
 let bwPickModeEi = null;
 let supersetPickEi = null;
+let _repPressTimer = null, _repPressLong = false, _repPressWasTouch = false;
+let _1rmSheetEi = null;
 
 // ── Haptic feedback ──────────────────────────────
 function haptic(pattern = 20) {
@@ -4961,7 +4967,7 @@ function cycleRep(ei, si) {
 function toggleEx(ei) { wktData[ei].open = !wktData[ei].open; renderWkt(); }
 function addSet(ei) {
   const last = wktData[ei].sets[wktData[ei].sets.length - 1];
-  wktData[ei].sets.push({w: last.w, h: [null, null, null, null]});
+  wktData[ei].sets.push({w: last.w, h: [null, null, null, null], rirH: [null, null, null, null]});
   renderWkt();
   saveActiveWorkout();
 }
@@ -4999,7 +5005,7 @@ function addWarmupSet(ei) {
   const w = firstWorkingW ? Math.round(firstWorkingW.w * 0.6 / 5) * 5 : 0;
   const firstWorking = ex.sets.findIndex(s => !s.warmup);
   const idx = firstWorking >= 0 ? firstWorking : 0;
-  ex.sets.splice(idx, 0, {w, h: [null, null, null, null], warmup: true});
+  ex.sets.splice(idx, 0, {w, h: [null, null, null, null], rirH: [null, null, null, null], warmup: true});
   openMoreMenuEi = null;
   renderWkt(); saveActiveWorkout();
   showToast('Warm-up set added');
@@ -5019,7 +5025,7 @@ function addDropToSet(ei, si) {
   const s = wktData[ei].sets[si];
   if (s.drop) { showToast('Drop already exists on this set'); return; }
   const dropW = Math.round(s.w * 0.8 / 5) * 5;
-  s.drop = {w: dropW, h: [null, null, null, null]};
+  s.drop = {w: dropW, h: [null, null, null, null], rirH: [null, null, null, null]};
   dropPickModeEi = null;
   renderWkt(); saveActiveWorkout();
   showToast('Drop set added');
@@ -5058,6 +5064,129 @@ function cycleDropRep(ei, si) {
   renderWkt(); saveActiveWorkout();
 }
 
+// ── RIR (Reps in Reserve) long-press ─────────────────────────────
+function startRepPress(e, ei, si, isDrop) {
+  if (e.type === 'mousedown' && _repPressWasTouch) return;
+  if (e.type === 'touchstart') _repPressWasTouch = true;
+  _repPressLong = false;
+  clearTimeout(_repPressTimer);
+  _repPressTimer = setTimeout(() => {
+    _repPressLong = true;
+    haptic(30);
+    incrementRIR(ei, si, isDrop);
+  }, 600);
+}
+function endRepPress(e, ei, si, isDrop) {
+  if (e.type === 'mouseup' && _repPressWasTouch) { _repPressWasTouch = false; return; }
+  clearTimeout(_repPressTimer);
+  if (!_repPressLong) {
+    if (isDrop) cycleDropRep(ei, si);
+    else cycleRep(ei, si);
+  }
+  _repPressLong = false;
+}
+function cancelRepPress() {
+  clearTimeout(_repPressTimer);
+  _repPressLong = false;
+}
+function incrementRIR(ei, si, isDrop) {
+  const target = isDrop ? wktData[ei].sets[si].drop : wktData[ei].sets[si];
+  if (!target || target.h[CUR] === null) return;
+  if (!target.rirH) target.rirH = [null, null, null, null];
+  const cur = target.rirH[CUR];
+  // cycle: null→1→2→3→4→5(5+)→0(fail)→1→...
+  target.rirH[CUR] = cur === null ? 1 : cur >= 5 ? 0 : cur + 1;
+  saveActiveWorkout();
+  renderWkt();
+}
+
+// ── %1RM ─────────────────────────────────────────────────────────
+function estimate1RM(weight, reps) {
+  if (!weight || weight === 'BW' || !reps || reps < 1 || reps > 15) return null;
+  if (reps === 1) return Math.round(parseFloat(weight));
+  return Math.round(parseFloat(weight) * (1 + reps / 30));
+}
+function getBest1RM(exName) {
+  const src = getActiveRoutineLogSrc();
+  let bestEst = null, bestWeight = 0, bestReps = 0;
+  src.forEach(entry => {
+    if (!entry.exercises) return;
+    const ex = entry.exercises.find(e => e.name === exName);
+    if (!ex) return;
+    ex.sets.forEach(s => {
+      if (s.warmup || s.w === 'BW' || !s.w || !s.reps) return;
+      const est = estimate1RM(s.w, s.reps);
+      if (est && est > (bestEst || 0)) { bestEst = est; bestWeight = s.w; bestReps = s.reps; }
+    });
+  });
+  return bestEst ? { est: bestEst, fromW: bestWeight, fromReps: bestReps } : null;
+}
+function open1RMSheet(ei) {
+  _1rmSheetEi = ei;
+  openMoreMenuEi = null;
+  const ex = wktData[ei];
+  const result = getBest1RM(ex.name);
+  document.getElementById('onerm-title').textContent = ex.name;
+  const unit = (userProfile.weightUnit || 'lbs');
+  const exDef = findExerciseDef(ex.name);
+  const [minReps, maxReps] = exDef ? parseRepRange(exDef.reps) : [8, 12];
+  const firstSeen = !localStorage.getItem(getStorageKey('seen_1rm'));
+  if (firstSeen) localStorage.setItem(getStorageKey('seen_1rm'), '1');
+  const explainer = firstSeen
+    ? `<div style="background:rgba(46,204,113,.08);border:0.5px solid var(--accent-border);border-radius:11px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--text3);line-height:1.6">
+        <strong style="color:var(--accent)">How this works</strong><br>
+        Your 1RM estimate comes from your best logged set using the Epley formula. The heavier and closer to failure you train, the more accurate it gets. The highlighted zone matches your current rep range — use those weights as a starting point.
+      </div>`
+    : '';
+  if (!result) {
+    document.getElementById('onerm-body').innerHTML = explainer +
+      `<div style="color:var(--text5);font-size:13px;text-align:center;padding:24px 0">No logged sets yet — complete at least one set to see your estimated 1RM.</div>`;
+    document.getElementById('onerm-overlay').classList.add('show');
+    renderWkt();
+    return;
+  }
+  const { est, fromW, fromReps } = result;
+  const curW = ex.sets.find(s => !s.warmup && s.w !== 'BW') ? parseFloat(ex.sets.find(s => !s.warmup && s.w !== 'BW').w) : null;
+  const curPct = curW && est ? Math.round(curW / est * 100) : null;
+  const zones = [
+    { name: 'Max Strength', pctLo: 90, pctHi: 97, repsLo: 1, repsHi: 3 },
+    { name: 'Strength',     pctLo: 80, pctHi: 90, repsLo: 3, repsHi: 6 },
+    { name: 'Hypertrophy',  pctLo: 65, pctHi: 80, repsLo: 6, repsHi: 12 },
+    { name: 'Endurance',    pctLo: 50, pctHi: 65, repsLo: 12, repsHi: 20 },
+  ];
+  const zoneRows = zones.map(z => {
+    const wLo = Math.round(est * z.pctLo / 100);
+    const wHi = Math.round(est * z.pctHi / 100);
+    const active = maxReps >= z.repsLo && minReps <= z.repsHi;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:11px;margin-bottom:6px;
+      background:${active ? 'var(--accent-dim)' : 'var(--card2)'};border:0.5px solid ${active ? 'var(--accent-border)' : 'var(--border)'}">
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:700;color:${active ? 'var(--accent)' : 'var(--text2)'}">${z.name}${active ? ' ★' : ''}</div>
+        <div style="font-size:11px;color:var(--text5);margin-top:1px">${z.pctLo}–${z.pctHi}% · ${z.repsLo}–${z.repsHi} reps</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:15px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums">${wLo}–${wHi}</div>
+        <div style="font-size:11px;color:var(--text5)">${unit}</div>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('onerm-body').innerHTML = `
+    ${explainer}
+    <div style="text-align:center;margin-bottom:20px;padding:16px;background:var(--card2);border-radius:14px;border:0.5px solid var(--border)">
+      <div style="font-size:40px;font-weight:800;color:var(--text);letter-spacing:-.02em;font-variant-numeric:tabular-nums">~${est}</div>
+      <div style="font-size:13px;color:var(--text5);margin-top:2px">estimated 1RM in ${unit}</div>
+      <div style="font-size:11px;color:var(--text5);margin-top:3px">from ${fromW} ${unit} × ${fromReps} reps</div>
+      ${curPct ? `<div style="font-size:12px;color:var(--accent);font-weight:600;margin-top:8px;background:var(--accent-dim);border-radius:8px;padding:4px 10px;display:inline-block">Working weight = ${curPct}% of 1RM</div>` : ''}
+    </div>
+    <div style="font-size:10px;color:var(--text5);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;font-weight:600">Training zones</div>
+    ${zoneRows}`;
+  document.getElementById('onerm-overlay').classList.add('show');
+  renderWkt();
+}
+function close1RMSheet() {
+  document.getElementById('onerm-overlay').classList.remove('show');
+}
+
 // ── SUPERSETS ──
 function enterSupersetMode(ei) {
   supersetPickEi = ei;
@@ -5074,7 +5203,7 @@ function confirmSuperset(name, muscle) {
   wktData.splice(sourceEi + 1, 0, {
     name, muscle, open: true, hasPR: false, isNew: true, lastOpen: false, last,
     supersetId: ssId, supersetOrder: 1,
-    sets: [{w:defaultW,h:[null,null,null,null]},{w:defaultW,h:[null,null,null,null]},{w:defaultW,h:[null,null,null,null]}]
+    sets: [{w:defaultW,h:[null,null,null,null],rirH:[null,null,null,null]},{w:defaultW,h:[null,null,null,null],rirH:[null,null,null,null]},{w:defaultW,h:[null,null,null,null],rirH:[null,null,null,null]}]
   });
   closeWktAddSheet();
   renderWkt(); saveActiveWorkout();
@@ -5162,19 +5291,37 @@ function getPoRecommendation(ex) {
   if (!ex.last || !ex.last.sets || !ex.last.sets.length) {
     return { type:'first', icon:'ti-sparkles', message:'First time logging this — set your starting weight' };
   }
-  const lastSets = ex.last.sets;
+  const lastSets = ex.last.sets.filter(s => !s.warmup);
+  if (!lastSets.length) return { type:'first', icon:'ti-sparkles', message:'Set your working weight for this exercise' };
   const exDef = findExerciseDef(ex.name);
   const [minReps, maxReps] = exDef ? parseRepRange(exDef.reps) : [8, 12];
-  const allHitMax    = lastSets.every(s => s.reps >= maxReps);
-  const allCompleted = lastSets.every(s => s.reps >= minReps);
   const isLower = /quad|ham|glute|squat|deadlift|lunge|calf|leg press/i.test(ex.muscle || '');
   const inc = isLower ? 10 : 5;
+  // RIR-based recommendation (primary signal — most informative)
+  const setsWithRIR = lastSets.filter(s => s.rir !== null && s.rir !== undefined);
+  if (setsWithRIR.length > 0) {
+    const avgRIR = setsWithRIR.reduce((sum, s) => sum + s.rir, 0) / setsWithRIR.length;
+    const fmtRIR = Number.isInteger(avgRIR) ? avgRIR : avgRIR.toFixed(1);
+    if (avgRIR >= 4) {
+      return { type:'up', icon:'ti-trending-up', message:`Last session felt easy (avg ${fmtRIR} RIR) — add ${inc} lbs and push the same reps` };
+    }
+    if (avgRIR >= 2) {
+      return { type:'up', icon:'ti-trending-up', message:`${fmtRIR} RIR left last time — ready to bump ${inc} lbs this session` };
+    }
+    if (avgRIR >= 1) {
+      return { type:'hold', icon:'ti-target', message:`Close to failure last session (${fmtRIR} RIR) — same weight, aim for 1 more rep per set` };
+    }
+    return { type:'hold', icon:'ti-shield', message:'You hit failure last session — hold the weight, nail the reps, then progress next week' };
+  }
+  // Fallback: rep-range comparison
+  const allHitMax    = lastSets.every(s => s.reps >= maxReps);
+  const allCompleted = lastSets.every(s => s.reps >= minReps);
   if (allHitMax) {
-    return { type:'up',   icon:'ti-trending-up', message:`Ready to progress — try +${inc} lbs this session`, increment: inc };
+    return { type:'up',   icon:'ti-trending-up', message:`Hit the top of your rep range last session — add ${inc} lbs today` };
   } else if (allCompleted) {
-    return { type:'hold', icon:'ti-target',       message:'Good session — same weight, push for more reps', increment: 0 };
+    return { type:'hold', icon:'ti-target',       message:'Good session — same weight, push for more reps' };
   } else {
-    return { type:'hold', icon:'ti-shield',       message:'Hit all reps before adding weight — focus on form', increment: 0 };
+    return { type:'hold', icon:'ti-shield',       message:'Complete all reps before adding weight — focus on form and full range' };
   }
 }
 function toggleLast(ei) {
@@ -5186,9 +5333,14 @@ function fmtLastInline(last) {
   if (!last || !last.sets || !last.sets.length) return null;
   const sets = last.sets.filter(s => s.reps > 0);
   if (!sets.length) return null;
-  if (sets.length <= 4) return 'Last: ' + sets.map(s => (s.w === 'BW' ? 'BW' : s.w) + '×' + s.reps).join(' · ');
+  const fmtS = s => {
+    const w = s.w === 'BW' ? 'BW' : s.w;
+    const r = (s.rir != null) ? (s.rir === 0 ? ' @fail' : `@${s.rir >= 5 ? '5+' : s.rir}`) : '';
+    return `${w}×${s.reps}${r}`;
+  };
+  if (sets.length <= 4) return 'Last: ' + sets.map(fmtS).join(' · ');
   const top = sets.filter(s => s.w !== 'BW').reduce((a, b) => b.w > a.w ? b : a, sets[0]);
-  return `Last: ${sets.length} sets · top ${top.w === 'BW' ? 'BW' : top.w}×${top.reps}`;
+  return `Last: ${sets.length} sets · top ${fmtS(top)}`;
 }
 
 function renderWkt() {
@@ -5231,8 +5383,11 @@ function renderWkt() {
             delta > 0 ? `<span class="last-delta up">+${delta} lbs today</span>` :
             delta < 0 ? `<span class="last-delta" style="color:var(--red)">${delta} lbs today</span>` :
             `<span class="last-delta same">same</span>`;
+          const rirTag = s.rir != null
+            ? `<span style="font-size:10px;color:var(--text5);margin-left:3px">${s.rir === 0 ? '@fail' : `@${s.rir >= 5 ? '5+' : s.rir} RIR`}</span>`
+            : '';
           const perfText = isBWLast ? `BW × ${s.reps} reps` : `${s.w} lbs × ${s.reps} reps`;
-          return `<div class="last-set-row"><span class="last-sn">S${si+1}</span><span class="last-perf">${perfText}</span>${deltaHtml}</div>`;
+          return `<div class="last-set-row"><span class="last-sn">S${si+1}</span><span class="last-perf">${perfText}</span>${rirTag}${deltaHtml}</div>`;
         }).join('') : '';
         lastSection = `<div class="last-hd" onclick="toggleLast(${ei})"><span class="last-lbl">Last session</span><i class="ti ti-chevron-down last-chev${ex.lastOpen ? ' open' : ''}"></i></div>${ex.lastOpen ? `<div style="margin-bottom:8px">${lastRows}</div>` : ''}`;
       }
@@ -5281,8 +5436,13 @@ function renderWkt() {
           if (isCur) cls += ' cur-wk';
           if (ex.isNew && wi < CUR) cls += ' empty-new';
           const disp = (ex.isNew && wi < CUR) ? '—' : r !== null ? r : '—';
-          const sub  = pr === 'rep' ? 'Rep PR' : pr ? 'PR' : r !== null ? 'done' : isCur ? 'tap' : '—';
-          html += `<div class="${cls}"${isCur && !canPick && !canBWPick ? ` onclick="cycleRep(${ei},${si})"` : ''}><div class="rep-val">${disp}</div><div class="rep-sub">${sub}</div></div>`;
+          const rirVal = (isCur && s.rirH) ? s.rirH[CUR] : null;
+          const rirSub = rirVal != null ? (rirVal === 0 ? '@ fail' : `@ ${rirVal >= 5 ? '5+' : rirVal}`) : null;
+          const sub = pr === 'rep' ? 'Rep PR' : pr ? 'PR' : r !== null ? (rirSub || 'done') : isCur ? 'tap' : '—';
+          const pressAttrs = isCur && !canPick && !canBWPick
+            ? ` ontouchstart="startRepPress(event,${ei},${si},false)" ontouchend="endRepPress(event,${ei},${si},false)" ontouchmove="cancelRepPress()" onmousedown="startRepPress(event,${ei},${si},false)" onmouseup="endRepPress(event,${ei},${si},false)" onmouseleave="cancelRepPress()" oncontextmenu="return false"`
+            : '';
+          html += `<div class="${cls}"${pressAttrs}><div class="rep-val">${disp}</div><div class="rep-sub">${sub}</div></div>`;
         });
         html += `</div>`;
         html += `<button type="button" class="rm-set-btn" onclick="event.stopPropagation();removeSet(${ei},${si})"><i class="ti ti-minus" style="font-size:9px"></i></button>`;
@@ -5306,8 +5466,13 @@ function renderWkt() {
             let cls = 'rep-box';
             if (r !== null) cls += ' logged'; if (isCur) cls += ' cur-wk';
             const disp = r !== null ? r : '—';
-            const sub  = r !== null ? 'done' : isCur ? 'tap' : '—';
-            html += `<div class="${cls}"${isCur ? ` onclick="cycleDropRep(${ei},${si})"` : ''}><div class="rep-val">${disp}</div><div class="rep-sub">${sub}</div></div>`;
+            const dropRirVal = (isCur && s.drop.rirH) ? s.drop.rirH[CUR] : null;
+            const dropRirSub = dropRirVal != null ? (dropRirVal === 0 ? '@ fail' : `@ ${dropRirVal >= 5 ? '5+' : dropRirVal}`) : null;
+            const sub = r !== null ? (dropRirSub || 'done') : isCur ? 'tap' : '—';
+            const dropPressAttrs = isCur
+              ? ` ontouchstart="startRepPress(event,${ei},${si},true)" ontouchend="endRepPress(event,${ei},${si},true)" ontouchmove="cancelRepPress()" onmousedown="startRepPress(event,${ei},${si},true)" onmouseup="endRepPress(event,${ei},${si},true)" onmouseleave="cancelRepPress()" oncontextmenu="return false"`
+              : '';
+            html += `<div class="${cls}"${dropPressAttrs}><div class="rep-val">${disp}</div><div class="rep-sub">${sub}</div></div>`;
           });
           html += `</div>`;
           html += `<button type="button" class="rm-set-btn" onclick="removeDropSet(${ei},${si})"><i class="ti ti-minus" style="font-size:9px"></i></button>`;
@@ -5326,6 +5491,7 @@ function renderWkt() {
           <button type="button" class="more-item" onclick="enterDropPickMode(${ei})"><span class="more-icon drop-icon">↓</span> Add drop set</button>
           <button type="button" class="more-item" onclick="addWarmupSet(${ei})"><span class="more-icon wup-icon">W</span> Add warm-up set</button>
           <button type="button" class="more-item" onclick="enterBWPickMode(${ei})"><span class="more-icon" style="font-size:10px;font-weight:700;color:var(--accent)">BW</span> Bodyweight set</button>
+          <button type="button" class="more-item" onclick="open1RMSheet(${ei})"><span class="more-icon" style="font-size:10px;font-weight:700;color:var(--text3)">1RM</span> Estimate 1RM</button>
           <button type="button" class="more-item" onclick="enterSupersetMode(${ei})"><i class="ti ti-arrows-exchange" style="font-size:14px;color:var(--accent-dark);width:20px;text-align:center"></i> Superset with another exercise</button>
           <button type="button" class="more-item" onclick="removeExercise(${ei})" style="color:var(--red)"><i class="ti ti-trash" style="font-size:14px;width:20px;text-align:center"></i> Remove exercise</button>
         </div>`;
@@ -6817,7 +6983,7 @@ function startRoutineDay(routineId, dayIdx) {
           if (ex && ex.sets[si]) h[w] = ex.sets[si].reps;
         }
       }
-      return { w: lastW, h };
+      return { w: lastW, h, rirH: [null, null, null, null] };
     });
     return { name: e.name, muscle: e.muscle || '', open: i === 0, hasPR: false, isNew: false, lastOpen: false, last, sets };
   });
@@ -6867,7 +7033,7 @@ function loadRoutineWorkout(r) {
           if (ex && ex.sets[si]) h[w] = ex.sets[si].reps;
         }
       }
-      return { w: lastW, h };
+      return { w: lastW, h, rirH: [null, null, null, null] };
     });
     return { name: e.name, muscle: e.muscle || '', open: i === 0, hasPR: false, isNew: false, lastOpen: false, last, sets };
   });
@@ -6905,8 +7071,8 @@ function addLogEntry(dayLabel, routineName) {
       muscle: ex.muscle,
       sets: ex.sets.flatMap(s => {
         const rows = [];
-        if (s.h[CUR] !== null) rows.push({w:s.w, reps:s.h[CUR], ...(s.warmup ? {warmup:true} : {})});
-        if (s.drop && s.drop.h[CUR] !== null) rows.push({w:s.drop.w, reps:s.drop.h[CUR], drop:true});
+        if (s.h[CUR] !== null) rows.push({w:s.w, reps:s.h[CUR], ...(s.rirH?.[CUR] != null ? {rir:s.rirH[CUR]} : {}), ...(s.warmup ? {warmup:true} : {})});
+        if (s.drop && s.drop.h[CUR] !== null) rows.push({w:s.drop.w, reps:s.drop.h[CUR], ...(s.drop.rirH?.[CUR] != null ? {rir:s.drop.rirH[CUR]} : {}), drop:true});
         return rows;
       })
     })).filter(ex => ex.sets.length > 0)
@@ -6940,8 +7106,8 @@ function addClientLogEntry(r, dayLabel, routineName) {
       muscle: ex.muscle,
       sets: ex.sets.flatMap(s => {
         const rows = [];
-        if (s.h[CUR] !== null) rows.push({w:s.w, reps:s.h[CUR], ...(s.warmup ? {warmup:true} : {})});
-        if (s.drop && s.drop.h[CUR] !== null) rows.push({w:s.drop.w, reps:s.drop.h[CUR], drop:true});
+        if (s.h[CUR] !== null) rows.push({w:s.w, reps:s.h[CUR], ...(s.rirH?.[CUR] != null ? {rir:s.rirH[CUR]} : {}), ...(s.warmup ? {warmup:true} : {})});
+        if (s.drop && s.drop.h[CUR] !== null) rows.push({w:s.drop.w, reps:s.drop.h[CUR], ...(s.drop.rirH?.[CUR] != null ? {rir:s.drop.rirH[CUR]} : {}), drop:true});
         return rows;
       })
     })).filter(ex => ex.sets.length > 0)
@@ -8392,6 +8558,18 @@ function applyUpdate() {
       <button type="button" onclick="cancelDeleteRoutine()" style="flex:1;background:var(--card2);border:0.5px solid var(--border);border-radius:14px;color:var(--text3);font-size:15px;font-weight:600;padding:15px;cursor:pointer;font-family:inherit">Cancel</button>
       <button type="button" onclick="executePendingDelete()" style="flex:1;background:#2a0e0e;border:0.5px solid #7a2020;border-radius:14px;color:var(--red);font-size:15px;font-weight:700;padding:15px;cursor:pointer;font-family:inherit">Delete</button>
     </div>
+  </div>
+</div>
+
+<!-- 1RM Sheet -->
+<div class="overlay" id="onerm-overlay" onclick="if(event.target===this)close1RMSheet()">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div id="onerm-title" style="font-size:16px;font-weight:700;color:var(--text)"></div>
+      <button type="button" class="sheet-close" onclick="close1RMSheet()"><i class="ti ti-x"></i></button>
+    </div>
+    <div id="onerm-body" style="overflow-y:auto;max-height:70vh;padding-bottom:8px"></div>
   </div>
 </div>
 </body>
