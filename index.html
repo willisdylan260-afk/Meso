@@ -4493,7 +4493,7 @@ function renderWktAddList(q='') {
 }
 function addExToWorkout(name, muscle) {
   if (supersetPickEi !== null) { confirmSuperset(name, muscle); return; }
-  const last = getLastSession(name);
+  const last = getLastSession(name, getActiveRoutineLogSrc());
   const defaultW = last && last.sets[0] ? last.sets[0].w : 0;
   wktData.push({
     name, muscle, open:true, hasPR:false, isNew:true, lastOpen:false, last,
@@ -5226,7 +5226,7 @@ function confirmSuperset(name, muscle) {
   const ssId = 'ss-' + Date.now();
   wktData[sourceEi].supersetId = ssId;
   wktData[sourceEi].supersetOrder = 0;
-  const last = getLastSession(name);
+  const last = getLastSession(name, getActiveRoutineLogSrc());
   const defaultW = last && last.sets[0] ? last.sets[0].w : 0;
   wktData.splice(sourceEi + 1, 0, {
     name, muscle, open: true, hasPR: false, isNew: true, lastOpen: false, last,
