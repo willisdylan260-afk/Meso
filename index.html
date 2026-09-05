@@ -89,6 +89,19 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
 }
 
 /* ─────────────────────────────────────────
+   iOS APP STORE COMPLIANCE
+   Prevent keyboard auto-zoom: iOS zooms any input with font-size < 16px.
+   This rule bumps inputs up to 16px on phone-sized viewports only.
+───────────────────────────────────────── */
+@media (max-width: 430px) {
+  input, textarea, select { font-size: max(1em, 16px) !important; }
+}
+/* Eliminate 300ms tap delay on interactive elements */
+a, button, [role="button"], input, label, select, textarea {
+  touch-action: manipulation;
+}
+
+/* ─────────────────────────────────────────
    SCREEN ROUTING
 ───────────────────────────────────────── */
 .screen{display:none;flex-direction:column;flex:1;overflow:hidden;position:absolute;inset:0;padding-top:env(safe-area-inset-top,0px)}
@@ -427,6 +440,32 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
 .add-ex-btn{background:var(--card);border:0.5px solid var(--border);border-radius:13px;color:var(--text4);font-size:12px;padding:13px 15px;cursor:pointer;font-family:inherit;white-space:nowrap}
 
 /* ─────────────────────────────────────────
+   WORKOUT MINIMIZE & ACTIVE CARD
+───────────────────────────────────────── */
+/* Swipe-up handle at bottom of workout */
+.wkt-home-bar{display:flex;flex-direction:column;align-items:center;gap:5px;padding:7px 0 6px;background:var(--bg);border-top:0.5px solid var(--border2);flex-shrink:0;cursor:pointer;-webkit-user-select:none;user-select:none}
+.wkt-home-pill{width:44px;height:4px;border-radius:2px;background:rgba(255,255,255,0.17);transition:background 140ms}
+.wkt-home-bar:active .wkt-home-pill{background:rgba(255,255,255,0.44)}
+.wkt-home-hint{font-size:9.5px;color:var(--text5);text-transform:uppercase;letter-spacing:.07em}
+
+/* Active workout card — floats above tab bar on home screen */
+#active-wkt-card{position:absolute;left:10px;right:10px;bottom:calc(58px + env(safe-area-inset-bottom,0px));z-index:22;background:var(--card);border:0.5px solid var(--accent-dark);border-radius:16px;padding:11px 14px;display:none;align-items:center;gap:11px;cursor:pointer;box-shadow:0 -1px 0 0 var(--accent-dim),0 12px 36px rgba(0,0,0,.58)}
+#active-wkt-card.show{display:flex;animation:awc-in 300ms cubic-bezier(.4,0,.2,1)}
+@keyframes awc-in{from{transform:translateY(18px);opacity:0}to{transform:translateY(0);opacity:1}}
+.awc-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);flex-shrink:0;animation:awc-blink 2s ease-in-out infinite}
+@keyframes awc-blink{0%,100%{opacity:1}50%{opacity:.22}}
+.awc-info{flex:1;min-width:0}
+.awc-name{font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.awc-meta{font-size:11px;color:var(--text4);margin-top:1px}
+.awc-return{background:var(--accent-dim);border:0.5px solid var(--accent-dark);border-radius:9px;color:var(--accent);font-size:12px;font-weight:600;padding:7px 11px;white-space:nowrap;font-family:inherit}
+
+/* Workout slide in/out animations */
+#screen-workout.wkt-slide-out{animation:wkt-out 340ms cubic-bezier(.4,0,1,1) forwards}
+#screen-workout.wkt-slide-in{animation:wkt-in  340ms cubic-bezier(0,0,.2,1)  forwards}
+@keyframes wkt-out{from{transform:translateY(0)}to{transform:translateY(105%)}}
+@keyframes wkt-in {from{transform:translateY(105%)}to{transform:translateY(0)}}
+
+/* ─────────────────────────────────────────
    SESSION SUMMARY
 ───────────────────────────────────────── */
 #screen-summary{background:var(--bg)}
@@ -497,7 +536,7 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
 ───────────────────────────────────────── */
 .overlay{position:absolute;inset:0;background:rgba(0,0,0,.72);z-index:50;display:flex;flex-direction:column;justify-content:flex-end;opacity:0;pointer-events:none;transition:opacity .25s}
 .overlay.show{opacity:1;pointer-events:all}
-.sheet{background:#161616;border:0.5px solid var(--border);border-top-left-radius:22px;border-top-right-radius:22px;padding-bottom:28px;transform:translateY(100%);transition:transform .32s cubic-bezier(.4,0,.2,1);max-height:80%;display:flex;flex-direction:column}
+.sheet{background:#161616;border:0.5px solid var(--border);border-top-left-radius:22px;border-top-right-radius:22px;padding-bottom:max(28px,env(safe-area-inset-bottom));transform:translateY(100%);transition:transform .32s cubic-bezier(.4,0,.2,1);max-height:80%;display:flex;flex-direction:column}
 .overlay.show .sheet{transform:translateY(0)}
 .sheet-handle{width:38px;height:4px;background:#2a2a2a;border-radius:2px;margin:12px auto 0}
 .sheet-hd{padding:16px 20px 12px;border-bottom:0.5px solid var(--border2);display:flex;align-items:flex-start;justify-content:space-between;flex-shrink:0}
@@ -1269,6 +1308,21 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
     </div>
   </div>
 
+  <!-- Exercise Progress Modal -->
+  <div class="overlay" id="ex-progress-overlay" onclick="if(event.target===this)closeExProgress()" style="z-index:92">
+    <div class="sheet" style="max-height:72%">
+      <div class="sheet-handle"></div>
+      <div class="sheet-hd">
+        <div>
+          <div class="sheet-title" id="exp-name"></div>
+          <div class="sheet-sub" id="exp-sub">Progress over time</div>
+        </div>
+        <button type="button" class="sheet-close" onclick="closeExProgress()"><i class="ti ti-x"></i></button>
+      </div>
+      <div class="sheet-body" id="exp-body" style="padding:0 0 8px"></div>
+    </div>
+  </div>
+
   <!-- Add Friend sheet -->
   <div class="overlay" id="add-friend-overlay" onclick="if(event.target===this)closeAddFriendSheet()">
     <div class="sheet" id="add-friend-sheet">
@@ -1756,6 +1810,16 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
       </div>
     </div>
   </div>
+
+  <!-- Active workout card — floats above tab bar while workout is minimized -->
+  <div id="active-wkt-card" onclick="returnToWorkout()" role="button" tabindex="0" aria-label="Return to active workout">
+    <div class="awc-dot"></div>
+    <div class="awc-info">
+      <div class="awc-name" id="awc-name">Active Workout</div>
+      <div class="awc-meta" id="awc-meta">0:00 · 0 sets done</div>
+    </div>
+    <div class="awc-return">Return ↑</div>
+  </div>
 </div>
 
 <!-- Progress profile selector sheet -->
@@ -1892,12 +1956,16 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
         <div class="wkt-elapsed" id="wkt-elapsed">0:00 elapsed</div>
         <div class="wkt-client-banner" id="wkt-client-banner" style="display:none"></div>
       </div>
-      <button type="button" style="background:var(--card);border:0.5px solid var(--border);border-radius:11px;color:var(--text4);font-size:12px;padding:7px 13px;cursor:pointer;font-family:inherit" onclick="confirmDiscardWorkout()"><i class="ti ti-arrow-left"></i> Back</button>
+      <button type="button" style="background:var(--card);border:0.5px solid var(--border);border-radius:11px;color:var(--text4);font-size:12px;padding:7px 13px;cursor:pointer;font-family:inherit" onclick="minimizeWorkout()"><i class="ti ti-chevron-down"></i> Home</button>
     </div>
     <div class="wkt-stats">
       <div class="ws-cell"><div class="lbl">Volume</div><div class="val teal" id="wkt-vol">0 lbs</div></div>
       <div class="ws-cell"><div class="lbl">Sets done</div><div class="val" id="wkt-sets">0 / 13</div></div>
       <div class="ws-cell"><div class="lbl">PRs</div><div class="val gold" id="wkt-prs">0 🏆</div></div>
+      <div class="ws-cell" style="align-items:flex-end">
+        <div class="lbl">&nbsp;</div>
+        <button type="button" onclick="confirmDiscardWorkout()" style="background:none;border:none;color:var(--text5);font-size:11px;cursor:pointer;font-family:inherit;padding:0;text-decoration:underline;text-underline-offset:2px">Discard</button>
+      </div>
     </div>
   </div>
   <div class="wkt-scroll" id="wkt-scroll">
@@ -1913,6 +1981,12 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
     </div>
     <div id="ex-cards"></div>
   </div>
+  <!-- Swipe-up minimize handle (touch or tap) -->
+  <div class="wkt-home-bar" id="wkt-home-bar" role="button" aria-label="Minimize workout">
+    <div class="wkt-home-pill"></div>
+    <span class="wkt-home-hint">Swipe up to go home</span>
+  </div>
+
   <div class="wkt-footer">
     <button type="button" class="add-ex-btn" onclick="openWktAddSheet()"><i class="ti ti-plus"></i> Exercise</button>
     <button type="button" class="finish-btn" onclick="finishWorkout()">Finish workout</button>
@@ -2420,6 +2494,8 @@ function startCustomWorkout() {
 function finishWorkout() {
   const {done} = getWktStats();
   if (done === 0) { showToast('Log at least one set to finish'); return; }
+  _wktMinimized = false;
+  _hideActiveWktCard();
   sessionPRs = getSessionPRs();
   if (pendingLogRoutine) {
     const r = userRoutines.find(r => r.id === pendingLogRoutine.routineId);
@@ -2527,7 +2603,6 @@ const EXERCISES = [
   {name:'DB squeeze press',         muscle:'Chest',     tags:'Dumbbell · Compound',   color:'#c45a5a'},
   {name:'Incline cable fly',        muscle:'Chest',     tags:'Cable · Isolation',     color:'#c45a5a'},
   {name:'Deficit push-up',          muscle:'Chest',     tags:'Bodyweight · Compound', color:'#c45a5a'},
-  {name:'Dumbbell pullover',        muscle:'Chest',     tags:'Dumbbell · Isolation',  color:'#c45a5a'},
   {name:'Wide grip push-up',        muscle:'Chest',     tags:'Bodyweight · Compound', color:'#c45a5a'},
 
   // ── BACK ──
@@ -2720,6 +2795,66 @@ const MUSCLE_FILTERS = ['All','Chest','Back','Legs','Shoulders','Arms','Core','E
 let activeFilter = 'All';
 let userExercises = []; // populated from localStorage in loadState()
 
+// ── Movement type helpers ─────────────────────────────────────
+const MVT_CYCLE   = ['Compound', 'Unilateral', 'Isometric', 'Isolation'];
+const EX_EQ_CYCLE = ['Barbell', 'Dumbbell', 'Cable', 'Machine', 'Bodyweight', 'Band', 'Plate', 'Kettlebell', 'Sled', 'Smith Machine'];
+
+function getMovementType(name, tags) {
+  const n = (name || '').toLowerCase();
+  if (/\b(plank|wall sit|l.sit|dead.hang|static hold|isometric|hollow hold|bear hold|brace)\b/.test(n)) return 'Isometric';
+  if (/\b(single.arm|single.leg|one.arm|one arm|unilateral|split squat|bulgarian|lunge|step.up|pistol|half.kneel|rear.foot|rfess|b.stance|sl |kb single)\b/.test(n)) return 'Unilateral';
+  const t = (tags || '').toLowerCase();
+  if (t.includes('isolation')) return 'Isolation';
+  return 'Compound';
+}
+
+function getEquipment(tags) {
+  return (tags || '').split('·')[0].trim();
+}
+
+function typeChipHtml(type, onclick) {
+  const cfg = {
+    Compound:   { bg:'rgba(90,138,196,.13)', bd:'rgba(90,138,196,.32)', tx:'#6899d0' },
+    Isolation:  { bg:'rgba(196,196,90,.12)', bd:'rgba(180,180,70,.30)', tx:'#a8a848' },
+    Unilateral: { bg:'rgba(160,90,220,.13)', bd:'rgba(160,90,220,.32)', tx:'#b070e0' },
+    Isometric:  { bg:'rgba(90,196,184,.12)', bd:'rgba(90,196,184,.30)', tx:'#44bdb0' },
+  };
+  const c = cfg[type] || cfg.Compound;
+  const label = type === 'Isometric' ? 'ISO' : type === 'Unilateral' ? 'Uni' : type;
+  const st = `font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:6px;border:0.5px solid ${c.bd};background:${c.bg};color:${c.tx};letter-spacing:.03em;white-space:nowrap`;
+  return onclick
+    ? `<span style="${st};cursor:pointer" onclick="${onclick}">${label}</span>`
+    : `<span style="${st}">${label}</span>`;
+}
+
+// Cycle through Compound → Unilateral → Isometric → Isolation → Compound
+function _nextMvtType(current) {
+  const i = MVT_CYCLE.indexOf(current);
+  return MVT_CYCLE[(i < 0 ? 0 : i + 1) % MVT_CYCLE.length];
+}
+
+// Routine day: tap the type chip to cycle
+function cycleRdExType(dayIdx, exIdx) {
+  const r = userRoutines.find(r => r.id === viewingRoutineId);
+  if (!r) return;
+  const ex = (r.days[dayIdx].exercises || [])[exIdx];
+  if (!ex) return;
+  const cur = ex.type || getMovementType(ex.name, '');
+  ex.type = _nextMvtType(cur);
+  saveState();
+  renderDayList(r);
+}
+
+// Active workout: tap the type chip to cycle
+function cycleWktExType(ei) {
+  const ex = wktData[ei];
+  if (!ex) return;
+  const cur = ex.type || getMovementType(ex.name, '');
+  ex.type = _nextMvtType(cur);
+  saveActiveWorkout();
+  renderWkt();
+}
+
 // ── FUZZY SEARCH HELPERS ──
 const SEARCH_ALIASES = {
   'rdl':   'romanian',
@@ -2790,6 +2925,30 @@ function matchesSearch(e, q) {
   renderExercises('');
 })();
 
+function cycleExRowType(el, ev) {
+  ev.stopPropagation();
+  const cur = el.dataset.t;
+  const next = _nextMvtType(cur);
+  el.dataset.t = next;
+  const cfg = {
+    Compound:   {bg:'rgba(90,138,196,.13)',bd:'rgba(90,138,196,.32)',tx:'#6899d0'},
+    Isolation:  {bg:'rgba(196,196,90,.12)',bd:'rgba(180,180,70,.30)',tx:'#a8a848'},
+    Unilateral: {bg:'rgba(160,90,220,.13)',bd:'rgba(160,90,220,.32)',tx:'#b070e0'},
+    Isometric:  {bg:'rgba(90,196,184,.12)',bd:'rgba(90,196,184,.30)',tx:'#44bdb0'},
+  };
+  const c = cfg[next] || cfg.Compound;
+  el.style.background = c.bg; el.style.borderColor = c.bd; el.style.color = c.tx;
+  el.textContent = next === 'Isometric' ? 'ISO' : next === 'Unilateral' ? 'Uni' : next;
+}
+function cycleExRowEquip(el, ev) {
+  ev.stopPropagation();
+  const cur = el.dataset.eq;
+  const idx = EX_EQ_CYCLE.indexOf(cur);
+  const next = EX_EQ_CYCLE[(idx < 0 ? 0 : idx + 1) % EX_EQ_CYCLE.length];
+  el.dataset.eq = next;
+  el.textContent = next;
+}
+
 function refreshExerciseSub() {
   const sub = document.getElementById('search-sub');
   const total = EXERCISES.length + userExercises.length;
@@ -2805,24 +2964,31 @@ function setFilter(el, f) {
 function filterEx(q) { renderExercises(q); }
 function renderExercises(q = '') {
   const allEx = [...EXERCISES, ...userExercises.map(e => ({...e, custom:true}))];
-  const list = allEx.filter(e =>
-    (activeFilter === 'All' || e.muscle === activeFilter) && matchesSearch(e, q)
-  );
+  const list = allEx.filter(e => {
+    if (activeFilter !== 'All' && e.muscle !== activeFilter) return false;
+    return matchesSearch(e, q);
+  });
   document.getElementById('ex-results').innerHTML = list.length
-    ? list.map(e => `
-      <div class="ex-row">
-        <div class="mdot" style="background:${e.color}"></div>
-        <div style="flex:1;min-width:0">
-          <div class="ex-name">${e.name}${e.custom ? '<span style="font-size:9px;background:var(--accent-dim);color:var(--accent);border:0.5px solid var(--accent-border);border-radius:8px;padding:1px 6px;margin-left:6px;font-weight:700;letter-spacing:.04em">CUSTOM</span>' : ''}</div>
-          <div class="ex-meta">${e.muscle} · ${e.tags}</div>
-        </div>
-        ${e.custom
-          ? `<button type="button" class="add-pill" style="background:transparent;border-color:var(--border);color:var(--text5);margin-right:4px" onclick="deleteCustomEx('${e.name.replace(/'/g,"\\'")}',event)"><i class="ti ti-trash" style="font-size:11px"></i></button>`
-          : ''}
-        <button type="button" class="add-pill" onclick="openSheet('${e.name.replace(/'/g,"\\'")}','${e.muscle}')">
-          <i class="ti ti-plus" style="font-size:11px"></i> Add
-        </button>
-      </div>`).join('')
+    ? list.map(e => {
+        const mtype = getMovementType(e.name, e.tags);
+        const equip = getEquipment(e.tags);
+        const tc = {Compound:{bg:'rgba(90,138,196,.13)',bd:'rgba(90,138,196,.32)',tx:'#6899d0'},Isolation:{bg:'rgba(196,196,90,.12)',bd:'rgba(180,180,70,.30)',tx:'#a8a848'},Unilateral:{bg:'rgba(160,90,220,.13)',bd:'rgba(160,90,220,.32)',tx:'#b070e0'},Isometric:{bg:'rgba(90,196,184,.12)',bd:'rgba(90,196,184,.30)',tx:'#44bdb0'}}[mtype]||{bg:'rgba(90,138,196,.13)',bd:'rgba(90,138,196,.32)',tx:'#6899d0'};
+        const tlabel = mtype==='Isometric'?'ISO':mtype==='Unilateral'?'Uni':mtype;
+        const chipBase = 'font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:6px;border:0.5px solid;letter-spacing:.03em;white-space:nowrap;cursor:pointer';
+        const eqChip = `<span style="${chipBase} border-color:rgba(255,255,255,.18);background:rgba(255,255,255,.07);color:var(--text4)" data-eq="${equip}" onclick="cycleExRowEquip(this,event)">${equip}</span>`;
+        const tyChip = `<span style="${chipBase} border-color:${tc.bd};background:${tc.bg};color:${tc.tx}" data-t="${mtype}" onclick="cycleExRowType(this,event)">${tlabel}</span>`;
+        return `<div class="ex-row">
+          <div class="mdot" style="background:${e.color}"></div>
+          <div style="flex:1;min-width:0">
+            <div class="ex-name">${e.name}${e.custom ? '<span style="font-size:9px;background:var(--accent-dim);color:var(--accent);border:0.5px solid var(--accent-border);border-radius:8px;padding:1px 6px;margin-left:6px;font-weight:700;letter-spacing:.04em">CUSTOM</span>' : ''}</div>
+            <div class="ex-meta" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">${e.muscle} · ${eqChip}${tyChip}</div>
+          </div>
+          ${e.custom ? `<button type="button" class="add-pill" style="background:transparent;border-color:var(--border);color:var(--text5);margin-right:4px" onclick="deleteCustomEx('${e.name.replace(/'/g,"\\'")}',event)"><i class="ti ti-trash" style="font-size:11px"></i></button>` : ''}
+          <button type="button" class="add-pill" onclick="openSheet('${e.name.replace(/'/g,"\\'")}','${e.muscle}')">
+            <i class="ti ti-plus" style="font-size:11px"></i> Add
+          </button>
+        </div>`;
+      }).join('')
     : '<div style="color:var(--text5);font-size:13px;text-align:center;padding:30px 0">No exercises found</div>';
 }
 
@@ -2906,7 +3072,27 @@ function handleOverlayClick(e) {
   if (e.target === document.getElementById('add-overlay')) closeSheet();
 }
 function renderSheet() {
-  document.getElementById('sheet-body').innerHTML =
+  const trackRow = (() => {
+    if (!pendingEx) return '';
+    const data = getStrengthData(pendingEx.name);
+    const pr = data.length ? Math.max(...data.map(d => d.v)) : null;
+    const sessions = data.length;
+    const sub = sessions === 0
+      ? 'No sessions logged yet'
+      : `${sessions} session${sessions===1?'':'s'} · PR ${pr} lbs`;
+    return `<div onclick="showExProgressModal('${pendingEx.name.replace(/'/g,"\\'")}','${pendingEx.muscle}')"
+      style="display:flex;align-items:center;gap:12px;padding:12px 16px;margin:0 0 12px;border-radius:14px;background:var(--card2);border:0.5px solid var(--border);cursor:pointer">
+      <div style="width:36px;height:36px;border-radius:10px;background:var(--accent-dim);border:0.5px solid var(--accent-border);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <i class="ti ti-chart-line" style="color:var(--accent);font-size:17px"></i>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700;color:var(--text)">Track over time</div>
+        <div style="font-size:11px;color:var(--text5);margin-top:1px">${sub}</div>
+      </div>
+      <i class="ti ti-chevron-right" style="color:var(--text5);font-size:15px"></i>
+    </div>`;
+  })();
+  document.getElementById('sheet-body').innerHTML = trackRow +
     ROUTINES.map((r, ri) => `
       <div class="routine-opt${selRoutine === ri ? ' sel' : ''}" onclick="pickRoutine(${ri})">
         <div class="r-icon">${r.icon}</div>
@@ -2930,6 +3116,121 @@ function confirmAdd() {
   const day = ROUTINES[selRoutine].days[selDay];
   closeSheet();
   setTimeout(() => showToast('Added to ' + day), 320);
+}
+
+// ─────────────────────────────────────────
+// EXERCISE PROGRESS MODAL
+// ─────────────────────────────────────────
+function showExProgressModal(name, muscle) {
+  document.getElementById('exp-name').textContent = name;
+  document.getElementById('exp-sub').textContent = (muscle || '') + ' · Progress over time';
+  const data = getStrengthData(name);
+  const body = document.getElementById('exp-body');
+
+  if (!data.length) {
+    body.innerHTML = `
+      <div style="text-align:center;padding:48px 20px">
+        <div style="font-size:36px;margin-bottom:12px">📈</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px">No history yet</div>
+        <div style="font-size:12px;color:var(--text5)">Log a workout with ${name} and your progress will appear here.</div>
+      </div>`;
+    document.getElementById('ex-progress-overlay').classList.add('show');
+    return;
+  }
+
+  const pr = Math.max(...data.map(d => d.v));
+  const sessions = data.length;
+  const last = data[data.length - 1];
+  const first = data[0];
+  const trend = last.v - first.v;
+  const trendStr = trend > 0 ? `+${trend} lbs since first session` : trend < 0 ? `${trend} lbs since first session` : 'Weight holding steady';
+
+  body.innerHTML = `
+    <div style="display:flex;gap:0;border-bottom:0.5px solid var(--border2);margin-bottom:0">
+      ${[
+        {label:'All-time PR', val: pr + ' lbs'},
+        {label:'Sessions',    val: sessions},
+        {label:'Last weight', val: last.v + ' lbs'},
+      ].map(s => `<div style="flex:1;padding:14px 0;text-align:center;border-right:0.5px solid var(--border2)">
+        <div style="font-size:18px;font-weight:800;color:var(--text);letter-spacing:-.02em">${s.val}</div>
+        <div style="font-size:10px;color:var(--text5);margin-top:2px;text-transform:uppercase;letter-spacing:.05em">${s.label}</div>
+      </div>`).join('')}
+    </div>
+    <div style="padding:16px 16px 4px">
+      <div style="font-size:11px;color:var(--text5);margin-bottom:10px">${trendStr}</div>
+      <div id="exp-chart-wrap" style="width:100%;overflow:hidden"></div>
+    </div>`;
+
+  document.getElementById('ex-progress-overlay').classList.add('show');
+
+  // draw chart after layout so we can measure width
+  requestAnimationFrame(() => {
+    const wrap = document.getElementById('exp-chart-wrap');
+    if (!wrap) return;
+    const W = wrap.clientWidth || 300;
+    wrap.innerHTML = _drawExProgressSvg(data, W, 170);
+  });
+}
+
+function closeExProgress() {
+  document.getElementById('ex-progress-overlay').classList.remove('show');
+}
+
+function _drawExProgressSvg(data, W, H) {
+  const pad = {t:8, r:12, b:36, l:42};
+  const cw = W - pad.l - pad.r;
+  const ch = H - pad.t - pad.b;
+  const vals = data.map(d => d.v);
+  const minV = Math.min(...vals);
+  const maxV = Math.max(...vals);
+  const rng  = maxV - minV || 1;
+  const N    = data.length;
+
+  const px = i => pad.l + (N < 2 ? cw/2 : (i / (N-1)) * cw);
+  const py = v => pad.t + ch - ((v - minV) / rng * ch);
+
+  const pts   = data.map((d,i) => `${px(i)},${py(d.v)}`).join(' ');
+  const areaD = `M${px(0)},${py(data[0].v)} ` + data.map((d,i)=>`L${px(i)},${py(d.v)}`).join(' ')
+              + ` L${px(N-1)},${pad.t+ch} L${px(0)},${pad.t+ch} Z`;
+
+  // y-axis guides
+  const yTicks = 3;
+  const yLines = Array.from({length:yTicks}, (_,i) => {
+    const v = minV + (rng / (yTicks-1)) * i;
+    const y = py(v);
+    return `<line x1="${pad.l}" y1="${y}" x2="${pad.l+cw}" y2="${y}" stroke="rgba(255,255,255,.05)" stroke-width="1"/>
+            <text x="${pad.l-6}" y="${y+4}" fill="rgba(255,255,255,.3)" font-size="9" text-anchor="end">${Math.round(v)}</text>`;
+  }).join('');
+
+  // x labels: first, middle, last (or all if ≤ 4)
+  const showIdx = N <= 4 ? data.map((_,i)=>i) : [0, Math.floor(N/2), N-1];
+  const xLabels = showIdx.map(i =>
+    `<text x="${px(i)}" y="${pad.t+ch+18}" fill="rgba(255,255,255,.3)" font-size="9" text-anchor="middle">${data[i].w}</text>`
+  ).join('');
+
+  // dots
+  const dots = data.map((d,i) => {
+    const isLast = i === N-1;
+    const isPR   = d.v === maxV;
+    return `<circle cx="${px(i)}" cy="${py(d.v)}" r="${isPR?5.5:3}"
+      fill="${isPR?'var(--accent)':'rgba(255,255,255,.25)'}"
+      stroke="${isPR?'rgba(0,229,255,.35)':'none'}" stroke-width="${isPR?4:0}"/>`;
+  }).join('');
+
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;overflow:visible">
+    <defs>
+      <linearGradient id="expGrd" x1="0" x2="0" y1="0" y2="1">
+        <stop offset="0%" stop-color="var(--accent)" stop-opacity=".22"/>
+        <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    ${yLines}
+    <path d="${areaD}" fill="url(#expGrd)"/>
+    <polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2"
+      stroke-linejoin="round" stroke-linecap="round"/>
+    ${dots}
+    ${xLabels}
+  </svg>`;
 }
 
 // ─────────────────────────────────────────
@@ -4486,7 +4787,10 @@ function renderWktAddList(q='') {
     ? list.map(e=>`
       <div class="ex-row" onclick="addExToWorkout('${e.name.replace(/'/g,"\\'")}','${e.muscle.replace(/'/g,"\\'")}')">
         <div class="mdot" style="background:${e.color}"></div>
-        <div style="flex:1;min-width:0"><div class="ex-name">${e.name}</div><div class="ex-meta">${e.muscle} · ${e.tags}</div></div>
+        <div style="flex:1;min-width:0">
+          <div class="ex-name">${e.name}</div>
+          <div class="ex-meta">${e.muscle} · ${e.tags}</div>
+        </div>
         <div class="add-pill"><i class="ti ti-plus" style="font-size:11px"></i> Add</div>
       </div>`).join('')
     : '<div style="color:var(--text5);font-size:13px;text-align:center;padding:30px 0">No exercises found</div>';
@@ -4871,7 +5175,8 @@ let wktData = [
    sets:[{w:60,h:[null,null,null,null]},{w:60,h:[null,null,null,null]},{w:60,h:[null,null,null,null]}]},
 ];
 
-let restSecs = 0, restIv = null, wktStart = null, wktIv = null;
+let restSecs = 0, restIv = null, restEndTime = null, _restNotifTimer = null;
+let wktStart = null, wktIv = null;
 let pendingLogRoutine = null;
 let openMoreMenuEi = null;
 let dropPickModeEi = null;
@@ -4882,7 +5187,16 @@ let _1rmSheetEi = null;
 
 // ── Haptic feedback ──────────────────────────────
 function haptic(pattern = 20) {
-  try { if (navigator.vibrate) navigator.vibrate(pattern); } catch(e) {}
+  try {
+    // Capacitor native Taptic Engine — activates automatically when wrapped for iOS App Store
+    if (window.Capacitor?.Plugins?.Haptics) {
+      const style = pattern >= 35 ? 'HEAVY' : pattern >= 20 ? 'MEDIUM' : 'LIGHT';
+      window.Capacitor.Plugins.Haptics.impact({ style });
+      return;
+    }
+    // Android / web fallback
+    if (navigator.vibrate) navigator.vibrate(pattern);
+  } catch(e) {}
 }
 
 // ── Wake lock (keep screen on during workout) ────
@@ -4916,7 +5230,8 @@ function startWorkout() {
 }
 function stopWorkout() {
   clearInterval(wktIv);
-  clearInterval(restIv);
+  clearInterval(restIv); restIv = null; restEndTime = null;
+  _cancelRestNotif();
   releaseWakeLock();
   clearActiveWorkout();
   wktStart = null;
@@ -4930,25 +5245,158 @@ function closeDiscardConfirm() {
 }
 function discardWorkout() {
   closeDiscardConfirm();
+  _wktMinimized = false;
+  _hideActiveWktCard();
   stopWorkout();
   pendingLogRoutine = null;
   goScreen('screen-app');
 }
+// ── Rest timer background notification helpers ────────────────
+function hapticDouble() {
+  try {
+    if (window.Capacitor?.Plugins?.Haptics) {
+      window.Capacitor.Plugins.Haptics.impact({ style: 'HEAVY' });
+      setTimeout(() => window.Capacitor.Plugins.Haptics.impact({ style: 'HEAVY' }), 280);
+      return;
+    }
+    if (navigator.vibrate) navigator.vibrate([300, 150, 300]);
+  } catch(e) {}
+}
+function _scheduleRestNotif(secsLeft) {
+  clearTimeout(_restNotifTimer);
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  _restNotifTimer = setTimeout(() => {
+    try { new Notification('Rest complete', { body: 'Time to get back to it!', tag: 'rest-timer', silent: false }); } catch(e) {}
+  }, secsLeft * 1000);
+}
+function _cancelRestNotif() { clearTimeout(_restNotifTimer); _restNotifTimer = null; }
+
+// Reschedule / cancel notification as user moves in and out of the app
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && restSecs > 0) {
+    // Use wall-clock time so iOS throttling doesn't matter
+    const remaining = restEndTime ? Math.max(1, (restEndTime - Date.now()) / 1000) : restSecs;
+    _scheduleRestNotif(remaining);
+  } else if (!document.hidden) {
+    _cancelRestNotif();
+    // Resync counter in case JS was throttled while backgrounded
+    if (restEndTime && restIv) {
+      const remaining = Math.round((restEndTime - Date.now()) / 1000);
+      if (remaining <= 0) {
+        clearInterval(restIv); restIv = null; restEndTime = null;
+        document.getElementById('rest-banner').style.display = 'none';
+        hapticDouble();
+      } else {
+        restSecs = remaining;
+        const el = document.getElementById('rest-time-disp');
+        if (el) { el.textContent = fmt(restSecs); el.style.color = restSecs <= 10 ? 'var(--red)' : 'var(--accent)'; }
+      }
+    }
+  }
+});
+
 function startRest(s = 90) {
   clearInterval(restIv);
+  _cancelRestNotif();
+  // Ask for notification permission on first rest (non-blocking, no interruption on denial)
+  if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
   restSecs = s;
+  restEndTime = Date.now() + s * 1000;
   document.getElementById('rest-banner').style.display = 'block';
   document.getElementById('rest-time-disp').textContent = fmt(restSecs);
   restIv = setInterval(() => {
     restSecs--;
-    if (restSecs <= 0) { clearInterval(restIv); document.getElementById('rest-banner').style.display = 'none'; return; }
+    if (restSecs <= 0) {
+      clearInterval(restIv); restIv = null; restEndTime = null;
+      _cancelRestNotif();
+      document.getElementById('rest-banner').style.display = 'none';
+      hapticDouble();
+      return;
+    }
     const el = document.getElementById('rest-time-disp');
     el.textContent = fmt(restSecs);
     el.style.color = restSecs <= 10 ? 'var(--red)' : 'var(--accent)';
   }, 1000);
 }
-function adjRest(d) { restSecs = Math.max(5, restSecs + d); document.getElementById('rest-time-disp').textContent = fmt(restSecs); }
-function skipRest() { clearInterval(restIv); document.getElementById('rest-banner').style.display = 'none'; }
+function adjRest(d) {
+  restSecs = Math.max(5, restSecs + d);
+  restEndTime = Date.now() + restSecs * 1000;
+  document.getElementById('rest-time-disp').textContent = fmt(restSecs);
+}
+function skipRest() {
+  clearInterval(restIv); restIv = null; restEndTime = null;
+  _cancelRestNotif();
+  document.getElementById('rest-banner').style.display = 'none';
+}
+
+// ── Workout minimize / return ─────────────────────────────────
+let _wktMinimized = false;
+let _awcIv = null; // interval to keep the elapsed time on the card ticking
+
+function minimizeWorkout() {
+  _wktMinimized = true;
+  const sw = document.getElementById('screen-workout');
+  sw.classList.add('wkt-slide-out');
+  sw.addEventListener('animationend', () => {
+    sw.classList.remove('wkt-slide-out');
+    goScreen('screen-app');
+    _showActiveWktCard();
+  }, { once: true });
+}
+
+function returnToWorkout() {
+  _wktMinimized = false;
+  _hideActiveWktCard();
+  goScreen('screen-workout');
+  const sw = document.getElementById('screen-workout');
+  sw.classList.add('wkt-slide-in');
+  sw.addEventListener('animationend', () => sw.classList.remove('wkt-slide-in'), { once: true });
+  renderWkt();
+}
+
+function _showActiveWktCard() {
+  const card = document.getElementById('active-wkt-card');
+  if (!card || !wktData || !wktData.length) return;
+  const title = pendingLogRoutine ? pendingLogRoutine.dayLabel : 'Active Workout';
+  document.getElementById('awc-name').textContent = title;
+  _updateAwcMeta();
+  card.classList.add('show');
+  // Tick the elapsed time every second while card is visible
+  clearInterval(_awcIv);
+  _awcIv = setInterval(() => { if (_wktMinimized) _updateAwcMeta(); }, 1000);
+}
+
+function _hideActiveWktCard() {
+  clearInterval(_awcIv);
+  const card = document.getElementById('active-wkt-card');
+  if (card) card.classList.remove('show');
+}
+
+function _updateAwcMeta() {
+  const el = document.getElementById('awc-meta');
+  if (!el) return;
+  const elapsed = wktStart ? Math.floor((Date.now() - wktStart) / 1000) : 0;
+  const { done, total } = getWktStats();
+  el.textContent = fmt(elapsed) + ' · ' + done + ' / ' + total + ' sets';
+}
+
+// Swipe-up / tap gesture on the home bar
+(function initWktHomeBar() {
+  const bar = document.getElementById('wkt-home-bar');
+  if (!bar) return;
+  let sy = 0, _touchHandled = false;
+  bar.addEventListener('touchstart', e => { sy = e.touches[0].clientY; }, { passive: true });
+  bar.addEventListener('touchend', e => {
+    _touchHandled = true;
+    setTimeout(() => { _touchHandled = false; }, 500);
+    const dy = sy - e.changedTouches[0].clientY; // positive = swipe up
+    if (dy >= -15) minimizeWorkout(); // swipe up or tap (not a deliberate downward swipe)
+  }, { passive: true });
+  bar.addEventListener('click', () => {
+    if (_touchHandled) return; // already handled by touchend
+    minimizeWorkout();
+  });
+})();
 
 function cycleRep(ei, si) {
   const prev = wktData[ei].sets[si].h[CUR];
@@ -5385,7 +5833,7 @@ function renderWkt() {
       <div class="ex-hd" onclick="toggleEx(${ei})">
         <div>
           <div class="ex-hd-name">${ex.name}${ex.hasPR ? '<span class="pr-ex-badge">PR</span>' : ''}${ex.supersetId ? '<span class="pr-ex-badge" style="background:var(--accent-dim);color:var(--accent-dark);border-color:var(--accent-border)">⇄ SS</span>' : ''}</div>
-          <div class="ex-hd-sub">${ex.muscle}</div>
+          <div class="ex-hd-sub" style="display:flex;align-items:center;gap:6px">${ex.muscle} · ${typeChipHtml(ex.type || getMovementType(ex.name,''), `event.stopPropagation();cycleWktExType(${ei})`)}</div>
           ${lastHint ? `<div class="ex-last-inline">${lastHint}</div>` : ''}
         </div>
         <div class="ex-hd-right">
@@ -6604,7 +7052,13 @@ function renderDayList(r) {
                  ondrop="exDrop(event,${i},${ei})">
               <i class="ti ti-grip-vertical rd-ex-grip" ontouchstart="exTouchStart(event,${i},${ei})"></i>
               <div class="rd-ex-dot"></div>
-              <div class="rd-ex-name">${e.name}</div>
+              <div style="flex:1;min-width:0">
+                <div class="rd-ex-name">${e.name}</div>
+                <div style="display:flex;align-items:center;gap:5px;margin-top:2px">
+                  ${e.muscle ? `<span style="font-size:10px;color:var(--text5)">${e.muscle}</span><span style="font-size:10px;color:var(--text5)">·</span>` : ''}
+                  ${typeChipHtml(e.type || getMovementType(e.name, ''), `event.stopPropagation();cycleRdExType(${i},${ei})`)}
+                </div>
+              </div>
               <div class="rd-ex-sets" onclick="event.stopPropagation();openExSetsEditor(${i},${ei})" style="cursor:pointer;padding:3px 7px;border-radius:7px;border:0.5px solid var(--border2)">${e.sets}×${e.reps}</div>
               <button type="button" class="rd-swap-btn" onclick="event.stopPropagation();openSwapSheet(${i},${ei})">
                 <i class="ti ti-repeat" style="font-size:11px"></i> Swap
