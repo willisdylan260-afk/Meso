@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Forge Fitness</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0a0a0a">
+<meta name="theme-color" content="#090f1a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -25,56 +25,61 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
 
 /* ─────────────────────────────────────────
    DESIGN TOKENS
-   Edit these to retheme the whole app
+   Palette: Sky #73C7E3 · Linen #FFF9F0 · Turquoise #24B0BA
+            Light #F0F2F2 · Navy #2E4A70 · Gold #CF8A40
 ───────────────────────────────────────── */
 :root{
-  /* iOS-style dark — deep true black base, layered surfaces */
-  --bg:#000000;
-  --card:#1c1c1e;
-  --card2:#2c2c2e;
-  --border:#3a3a3c;
-  --border2:#2c2c2e;
+  /* Dark mode — deep navy base */
+  --bg:#090f1a;
+  --card:#111e30;
+  --card2:#172640;
+  --border:#2e4a70;
+  --border2:#1a2e48;
 
-  --accent:#4fc4a8;
-  --accent-dim:#0e2822;
-  --accent-border:#1e5045;
-  --accent-dark:#2d7a66;
+  --accent:#24b0ba;
+  --accent-dim:#07262a;
+  --accent-border:#125860;
+  --accent-dark:#1a8890;
 
-  --gold:#d4a230;
-  --gold-dim:#2a1f0a;
-  --gold-border:#5a3e0a;
+  --gold:#cf8a40;
+  --gold-dim:#281c08;
+  --gold-border:#6a3e10;
 
-  --red:#ff453a;
+  --red:#e05a3a;
 
-  --text:#ffffff;
-  --text2:#ebebf5cc;
-  --text3:#ebebf599;
-  --text4:#636366;
-  --text5:#48484a;
-  --text6:#3a3a3c;
+  --text:#e8f4f8;
+  --text2:#9bbece;
+  --text3:#6a8ea0;
+  --text4:#4a6a7e;
+  --text5:#2e4a62;
+  --text6:#1c3050;
 }
 
-/* ── Light theme — iOS system light ── */
+/* ── Light mode — Linen warmth + Navy depth ── */
 [data-theme="light"]{
-  --bg:#f2f2f7;
+  --bg:#fff9f0;
   --card:#ffffff;
-  --card2:#f2f2f7;
-  --border:#c6c6c8;
-  --border2:#e5e5ea;
+  --card2:#f0f2f2;
+  --border:#c8cdd4;
+  --border2:#dde2e8;
 
-  --accent:#00a693;
-  --accent-dim:#e0f5f2;
-  --accent-border:#80d4cc;
-  --accent-dark:#007a6b;
+  --accent:#24b0ba;
+  --accent-dim:#dff5f6;
+  --accent-border:#7acfd4;
+  --accent-dark:#1a8890;
 
-  --red:#ff3b30;
+  --gold:#cf8a40;
+  --gold-dim:#fdf0e0;
+  --gold-border:#e8b870;
 
-  --text:#000000;
-  --text2:#3c3c43;
-  --text3:#3c3c4399;
-  --text4:#8e8e93;
-  --text5:#aeaeb2;
-  --text6:#c7c7cc;
+  --red:#d44020;
+
+  --text:#2e4a70;
+  --text2:#3a5a80;
+  --text3:#5e7a96;
+  --text4:#8aaabf;
+  --text5:#b0c8d8;
+  --text6:#ccdae6;
 }
 
 /* ─────────────────────────────────────────
@@ -85,8 +90,8 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
   background:var(--bg);
   border-radius:44px;
   overflow:hidden;
-  border:1px solid #2c2c2e;
-  box-shadow:0 40px 120px rgba(0,0,0,.9),inset 0 0 0 1px #3a3a3c;
+  border:1px solid #1a2e48;
+  box-shadow:0 40px 120px rgba(0,0,0,.85),inset 0 0 0 1px #2e4a70;
   position:relative;
   display:flex;flex-direction:column;
 }
@@ -4577,7 +4582,7 @@ function setTheme(theme) {
   }
   // Update iOS status bar color
   const tcMeta = document.querySelector('meta[name="theme-color"]');
-  if (tcMeta) tcMeta.content = theme === 'light' ? '#f2f2f7' : '#000000';
+  if (tcMeta) tcMeta.content = theme === 'light' ? '#fff9f0' : '#090f1a';
   ['dark','light'].forEach(t => {
     const btn = document.getElementById('theme-'+t);
     if (!btn) return;
@@ -8637,11 +8642,11 @@ function loadState() {
     if (userProfile.theme === 'light') {
       document.documentElement.setAttribute('data-theme', 'light');
       const tc = document.querySelector('meta[name="theme-color"]');
-      if (tc) tc.content = '#f2f2f7';
+      if (tc) tc.content = '#fff9f0';
     } else {
       document.documentElement.removeAttribute('data-theme');
       const tc = document.querySelector('meta[name="theme-color"]');
-      if (tc) tc.content = '#000000';
+      if (tc) tc.content = '#090f1a';
     }
   } catch(e) {}
 }
