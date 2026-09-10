@@ -28,49 +28,53 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
    Edit these to retheme the whole app
 ───────────────────────────────────────── */
 :root{
-  --bg:#111;
-  --card:#1a1a1a;
-  --card2:#1e1e1e;
-  --border:#252525;
-  --border2:#1e1e1e;
+  /* iOS-style dark — deep true black base, layered surfaces */
+  --bg:#000000;
+  --card:#1c1c1e;
+  --card2:#2c2c2e;
+  --border:#3a3a3c;
+  --border2:#2c2c2e;
 
-  --accent:#4fc4a8;          /* teal — primary brand color */
-  --accent-dim:#1a2e2a;
-  --accent-border:#2d5a4a;
+  --accent:#4fc4a8;
+  --accent-dim:#0e2822;
+  --accent-border:#1e5045;
   --accent-dark:#2d7a66;
 
   --gold:#d4a230;
   --gold-dim:#2a1f0a;
   --gold-border:#5a3e0a;
 
-  --red:#e05a3a;
+  --red:#ff453a;
 
-  --text:#f0ede8;
-  --text2:#c8c4be;
-  --text3:#888;
-  --text4:#555;
-  --text5:#444;
-  --text6:#333;
+  --text:#ffffff;
+  --text2:#ebebf5cc;
+  --text3:#ebebf599;
+  --text4:#636366;
+  --text5:#48484a;
+  --text6:#3a3a3c;
 }
 
-/* ── Light theme ── */
+/* ── Light theme — iOS system light ── */
 [data-theme="light"]{
-  --bg:#f4f4f2;
+  --bg:#f2f2f7;
   --card:#ffffff;
-  --card2:#efefed;
-  --border:#e0e0dc;
-  --border2:#e8e8e4;
-  --accent:#2d9e86;
-  --accent-dim:#e4f4f0;
-  --accent-border:#a0d8cc;
-  --accent-dark:#1d7a66;
-  --red:#d44020;
-  --text:#1a1a16;
-  --text2:#3a3a34;
-  --text3:#666;
-  --text4:#888;
-  --text5:#aaa;
-  --text6:#ccc;
+  --card2:#f2f2f7;
+  --border:#c6c6c8;
+  --border2:#e5e5ea;
+
+  --accent:#00a693;
+  --accent-dim:#e0f5f2;
+  --accent-border:#80d4cc;
+  --accent-dark:#007a6b;
+
+  --red:#ff3b30;
+
+  --text:#000000;
+  --text2:#3c3c43;
+  --text3:#3c3c4399;
+  --text4:#8e8e93;
+  --text5:#aeaeb2;
+  --text6:#c7c7cc;
 }
 
 /* ─────────────────────────────────────────
@@ -81,8 +85,8 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
   background:var(--bg);
   border-radius:44px;
   overflow:hidden;
-  border:1px solid #1e1e1e;
-  box-shadow:0 40px 120px rgba(0,0,0,.8),inset 0 0 0 1px #2a2a2a;
+  border:1px solid #2c2c2e;
+  box-shadow:0 40px 120px rgba(0,0,0,.9),inset 0 0 0 1px #3a3a3c;
   position:relative;
   display:flex;flex-direction:column;
 }
@@ -4571,12 +4575,15 @@ function setTheme(theme) {
   } else {
     document.documentElement.removeAttribute('data-theme');
   }
+  // Update iOS status bar color
+  const tcMeta = document.querySelector('meta[name="theme-color"]');
+  if (tcMeta) tcMeta.content = theme === 'light' ? '#f2f2f7' : '#000000';
   ['dark','light'].forEach(t => {
     const btn = document.getElementById('theme-'+t);
     if (!btn) return;
     const active = t === theme;
     btn.className = active ? 'seg-active' : '';
-    btn.style.color = active ? '#0a1a15' : 'var(--text3)';
+    btn.style.color = active ? (theme === 'light' ? '#000' : '#0a1a15') : 'var(--text3)';
   });
 }
 
@@ -8629,8 +8636,12 @@ function loadState() {
     // Apply saved theme
     if (userProfile.theme === 'light') {
       document.documentElement.setAttribute('data-theme', 'light');
+      const tc = document.querySelector('meta[name="theme-color"]');
+      if (tc) tc.content = '#f2f2f7';
     } else {
       document.documentElement.removeAttribute('data-theme');
+      const tc = document.querySelector('meta[name="theme-color"]');
+      if (tc) tc.content = '#000000';
     }
   } catch(e) {}
 }
