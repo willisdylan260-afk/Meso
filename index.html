@@ -53,6 +53,26 @@ html,body{height:100%;background:var(--bg);display:flex;align-items:center;justi
   --text6:#333;
 }
 
+/* ── Light theme ── */
+[data-theme="light"]{
+  --bg:#f4f4f2;
+  --card:#ffffff;
+  --card2:#efefed;
+  --border:#e0e0dc;
+  --border2:#e8e8e4;
+  --accent:#2d9e86;
+  --accent-dim:#e4f4f0;
+  --accent-border:#a0d8cc;
+  --accent-dark:#1d7a66;
+  --red:#d44020;
+  --text:#1a1a16;
+  --text2:#3a3a34;
+  --text3:#666;
+  --text4:#888;
+  --text5:#aaa;
+  --text6:#ccc;
+}
+
 /* ─────────────────────────────────────────
    PHONE SHELL
 ───────────────────────────────────────── */
@@ -1332,7 +1352,7 @@ a, button, [role="button"], input, label, select, textarea {
           <div class="sheet-title">Find Friends</div>
           <div class="sheet-sub">Search by name, @username, or email</div>
         </div>
-        <button type="button" onclick="importContacts()" style="background:var(--card2);border:0.5px solid var(--border);border-radius:10px;color:var(--text3);font-size:12px;font-weight:600;padding:8px 11px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px;white-space:nowrap;flex-shrink:0;margin-right:8px"><i class="ti ti-address-book" style="font-size:15px"></i> Contacts</button>
+        <button type="button" id="import-contacts-btn" onclick="importContacts()" style="background:var(--card2);border:0.5px solid var(--border);border-radius:10px;color:var(--text3);font-size:12px;font-weight:600;padding:8px 11px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px;white-space:nowrap;flex-shrink:0;margin-right:8px;display:none"><i class="ti ti-address-book" style="font-size:15px"></i> Contacts</button>
         <button type="button" class="sheet-close" onclick="closeAddFriendSheet()" aria-label="Close"><i class="ti ti-x"></i></button>
       </div>
       <div class="af-search-wrap">
@@ -1392,10 +1412,39 @@ a, button, [role="button"], input, label, select, textarea {
         <!-- Profile section -->
         <div style="font-size:11px;color:var(--text5);text-transform:uppercase;letter-spacing:.08em;margin:0 0 10px">Profile</div>
         <div style="background:var(--card2);border:0.5px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:20px">
-          <div style="padding:14px 16px;border-bottom:0.5px solid var(--border2)">
-            <div style="font-size:11px;color:var(--text5);margin-bottom:5px">Signed in as</div>
-            <div id="settings-email-display" style="font-size:13px;font-weight:600;color:var(--text)"></div>
+
+          <!-- Avatar + name preview -->
+          <div style="padding:16px;display:flex;align-items:center;gap:14px;border-bottom:0.5px solid var(--border2)">
+            <div id="settings-avatar-preview" style="width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;flex-shrink:0;letter-spacing:-.01em"></div>
+            <div style="flex:1;min-width:0">
+              <div id="settings-name-preview" style="font-size:15px;font-weight:700;color:var(--text)"></div>
+              <div id="settings-handle-preview" style="font-size:12px;color:var(--text4);margin-top:2px"></div>
+              <div id="settings-email-display" style="font-size:11px;color:var(--text5);margin-top:1px"></div>
+            </div>
           </div>
+
+          <!-- Avatar color -->
+          <div style="padding:12px 16px;border-bottom:0.5px solid var(--border2)">
+            <div style="font-size:11px;color:var(--text5);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em">Avatar color</div>
+            <div style="display:flex;gap:8px" id="avatar-color-row">
+              ${['#4fc4a8','#5a8ac4','#c45a5a','#c4905a','#8a5ac4','#c4c45a'].map(c=>
+                `<button type="button" onclick="setAvatarColor('${c}')" data-color="${c}"
+                  style="width:28px;height:28px;border-radius:50%;background:${c};border:2px solid transparent;cursor:pointer;flex-shrink:0;transition:border-color .15s"></button>`
+              ).join('')}
+            </div>
+          </div>
+
+          <!-- Display name -->
+          <div style="padding:14px 16px;border-bottom:0.5px solid var(--border2)">
+            <div style="font-size:11px;color:var(--text5);margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em">Display name</div>
+            <div style="display:flex;gap:8px">
+              <input id="settings-display-name" type="text" placeholder="Your name" maxlength="30"
+                style="flex:1;background:var(--card);border:0.5px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;padding:10px 12px;font-family:inherit;outline:none;min-width:0">
+              <button type="button" onclick="saveDisplayName()" style="background:var(--card);border:0.5px solid var(--border);border-radius:10px;color:var(--text3);font-size:13px;font-weight:600;padding:10px 14px;cursor:pointer;font-family:inherit;flex-shrink:0">Save</button>
+            </div>
+          </div>
+
+          <!-- Username -->
           <div style="padding:14px 16px;border-bottom:0.5px solid var(--border2)">
             <div style="font-size:11px;color:var(--text5);margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em">Username</div>
             <div style="display:flex;gap:8px;align-items:center">
@@ -1406,6 +1455,18 @@ a, button, [role="button"], input, label, select, textarea {
             </div>
             <div id="settings-username-err" style="font-size:11px;color:var(--red);margin-top:5px;display:none"></div>
           </div>
+
+          <!-- Bio -->
+          <div style="padding:14px 16px;border-bottom:0.5px solid var(--border2)">
+            <div style="font-size:11px;color:var(--text5);margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em">Bio</div>
+            <div style="display:flex;gap:8px;align-items:flex-start">
+              <textarea id="settings-bio" maxlength="80" placeholder="Short bio…" rows="2"
+                style="flex:1;background:var(--card);border:0.5px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;padding:10px 12px;font-family:inherit;outline:none;resize:none;min-width:0;line-height:1.4"></textarea>
+              <button type="button" onclick="saveBio()" style="background:var(--card);border:0.5px solid var(--border);border-radius:10px;color:var(--text3);font-size:13px;font-weight:600;padding:10px 14px;cursor:pointer;font-family:inherit;flex-shrink:0;align-self:flex-end">Save</button>
+            </div>
+          </div>
+
+          <!-- Phone -->
           <div style="padding:14px 16px;border-bottom:0.5px solid var(--border2)">
             <div style="font-size:11px;color:var(--text5);margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em">Phone for contact matching</div>
             <div style="display:flex;gap:8px">
@@ -1414,12 +1475,38 @@ a, button, [role="button"], input, label, select, textarea {
               <button type="button" onclick="saveAccountPhone()" style="background:var(--card);border:0.5px solid var(--border);border-radius:10px;color:var(--text3);font-size:13px;font-weight:600;padding:10px 14px;cursor:pointer;font-family:inherit;flex-shrink:0">Save</button>
             </div>
           </div>
+
           <button type="button" onclick="signOut()" style="width:100%;background:transparent;border:none;color:var(--red);font-size:14px;font-weight:600;padding:14px 16px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:8px;text-align:left"><i class="ti ti-logout"></i> Sign out</button>
+        </div>
+
+        <!-- Training section -->
+        <div style="font-size:11px;color:var(--text5);text-transform:uppercase;letter-spacing:.08em;margin:0 0 10px">Training</div>
+        <div style="background:var(--card2);border:0.5px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:20px">
+          <div style="padding:14px 16px;border-bottom:0.5px solid var(--border2)">
+            <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px">Goal</div>
+            <div style="display:flex;flex-wrap:wrap;gap:7px" id="settings-goal-btns"></div>
+          </div>
+          <div style="padding:14px 16px">
+            <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px">Experience</div>
+            <div style="display:flex;gap:7px" id="settings-exp-btns"></div>
+          </div>
         </div>
 
         <!-- Preferences section -->
         <div style="font-size:11px;color:var(--text5);text-transform:uppercase;letter-spacing:.08em;margin:0 0 10px">Preferences</div>
         <div style="background:var(--card2);border:0.5px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:20px">
+
+          <!-- Appearance -->
+          <div style="padding:14px 16px;border-bottom:0.5px solid var(--border2);display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <div style="font-size:14px;font-weight:600;color:var(--text)">Appearance</div>
+              <div style="font-size:12px;color:var(--text4);margin-top:2px">Light or dark interface</div>
+            </div>
+            <div style="display:flex;background:var(--card);border:0.5px solid var(--border);border-radius:10px;overflow:hidden;flex-shrink:0">
+              <button type="button" id="theme-dark"  onclick="setTheme('dark')"  style="padding:7px 12px;font-size:12px;font-weight:600;border:none;cursor:pointer;font-family:inherit;transition:all .15s">Dark</button>
+              <button type="button" id="theme-light" onclick="setTheme('light')" style="padding:7px 12px;font-size:12px;font-weight:600;border:none;cursor:pointer;font-family:inherit;transition:all .15s">Light</button>
+            </div>
+          </div>
 
           <!-- Weight unit -->
           <div style="padding:14px 16px;border-bottom:0.5px solid var(--border2);display:flex;align-items:center;justify-content:space-between">
@@ -2130,11 +2217,12 @@ function emailToFBKey(email) {
 }
 
 async function pushUserToFirebase() {
-  if (!ffDB || !activeAccountEmail || !userProfile.setupComplete) return;
+  if (!ffDB || !activeAccountEmail) return;
   try {
     await ffDB.ref('forge_users/' + emailToFBKey(activeAccountEmail)).set({
       name: userProfile.name || '',
       username: userProfile.username || '',
+      bio: userProfile.bio || '',
       email: activeAccountEmail,
       joinedAt: userProfile.joinedAt || new Date().toISOString()
     });
@@ -2821,7 +2909,7 @@ function typeChipHtml(type, onclick) {
   };
   const c = cfg[type] || cfg.Compound;
   const label = type === 'Isometric' ? 'ISO' : type === 'Unilateral' ? 'Uni' : type;
-  const st = `font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:6px;border:0.5px solid ${c.bd};background:${c.bg};color:${c.tx};letter-spacing:.03em;white-space:nowrap`;
+  const st = `font-size:9.5px;font-weight:600;padding:2px 7px;border-radius:6px;border:0.5px solid ${c.bd};background:${c.bg};color:${c.tx};letter-spacing:.02em;white-space:nowrap`;
   return onclick
     ? `<span style="${st};cursor:pointer" onclick="${onclick}">${label}</span>`
     : `<span style="${st}">${label}</span>`;
@@ -2931,13 +3019,13 @@ function cycleExRowType(el, ev) {
   const next = _nextMvtType(cur);
   el.dataset.t = next;
   const cfg = {
-    Compound:   {bg:'rgba(90,138,196,.13)',bd:'rgba(90,138,196,.32)',tx:'#6899d0'},
-    Isolation:  {bg:'rgba(196,196,90,.12)',bd:'rgba(180,180,70,.30)',tx:'#a8a848'},
-    Unilateral: {bg:'rgba(160,90,220,.13)',bd:'rgba(160,90,220,.32)',tx:'#b070e0'},
-    Isometric:  {bg:'rgba(90,196,184,.12)',bd:'rgba(90,196,184,.30)',tx:'#44bdb0'},
+    Compound:   {bd:'rgba(90,138,196,.18)',  tx:'rgba(104,153,208,.65)'},
+    Isolation:  {bd:'rgba(180,180,70,.15)',  tx:'rgba(168,168,72,.6)'},
+    Unilateral: {bd:'rgba(160,90,220,.18)',  tx:'rgba(176,112,224,.65)'},
+    Isometric:  {bd:'rgba(90,196,184,.15)',  tx:'rgba(68,189,176,.6)'},
   };
   const c = cfg[next] || cfg.Compound;
-  el.style.background = c.bg; el.style.borderColor = c.bd; el.style.color = c.tx;
+  el.style.borderColor = c.bd; el.style.color = c.tx; el.style.background = 'transparent';
   el.textContent = next === 'Isometric' ? 'ISO' : next === 'Unilateral' ? 'Uni' : next;
 }
 function cycleExRowEquip(el, ev) {
@@ -2972,11 +3060,11 @@ function renderExercises(q = '') {
     ? list.map(e => {
         const mtype = getMovementType(e.name, e.tags);
         const equip = getEquipment(e.tags);
-        const tc = {Compound:{bg:'rgba(90,138,196,.13)',bd:'rgba(90,138,196,.32)',tx:'#6899d0'},Isolation:{bg:'rgba(196,196,90,.12)',bd:'rgba(180,180,70,.30)',tx:'#a8a848'},Unilateral:{bg:'rgba(160,90,220,.13)',bd:'rgba(160,90,220,.32)',tx:'#b070e0'},Isometric:{bg:'rgba(90,196,184,.12)',bd:'rgba(90,196,184,.30)',tx:'#44bdb0'}}[mtype]||{bg:'rgba(90,138,196,.13)',bd:'rgba(90,138,196,.32)',tx:'#6899d0'};
+        const tc = {Compound:{bd:'rgba(90,138,196,.18)',tx:'rgba(104,153,208,.65)'},Isolation:{bd:'rgba(180,180,70,.15)',tx:'rgba(168,168,72,.6)'},Unilateral:{bd:'rgba(160,90,220,.18)',tx:'rgba(176,112,224,.65)'},Isometric:{bd:'rgba(90,196,184,.15)',tx:'rgba(68,189,176,.6)'}}[mtype]||{bd:'rgba(90,138,196,.18)',tx:'rgba(104,153,208,.65)'};
         const tlabel = mtype==='Isometric'?'ISO':mtype==='Unilateral'?'Uni':mtype;
-        const chipBase = 'font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:6px;border:0.5px solid;letter-spacing:.03em;white-space:nowrap;cursor:pointer';
-        const eqChip = `<span style="${chipBase} border-color:rgba(255,255,255,.18);background:rgba(255,255,255,.07);color:var(--text4)" data-eq="${equip}" onclick="cycleExRowEquip(this,event)">${equip}</span>`;
-        const tyChip = `<span style="${chipBase} border-color:${tc.bd};background:${tc.bg};color:${tc.tx}" data-t="${mtype}" onclick="cycleExRowType(this,event)">${tlabel}</span>`;
+        const chipBase = 'font-size:10px;font-weight:500;padding:1px 6px;border-radius:5px;border:0.5px solid;letter-spacing:.01em;white-space:nowrap;cursor:pointer;transition:opacity .15s';
+        const eqChip = `<span style="${chipBase} border-color:rgba(255,255,255,.09);background:transparent;color:var(--text5)" data-eq="${equip}" onclick="cycleExRowEquip(this,event)">${equip}</span>`;
+        const tyChip = `<span style="${chipBase} border-color:${tc.bd};background:transparent;color:${tc.tx}" data-t="${mtype}" onclick="cycleExRowType(this,event)">${tlabel}</span>`;
         return `<div class="ex-row">
           <div class="mdot" style="background:${e.color}"></div>
           <div style="flex:1;min-width:0">
@@ -2984,7 +3072,7 @@ function renderExercises(q = '') {
             <div class="ex-meta" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">${e.muscle} · ${eqChip}${tyChip}</div>
           </div>
           ${e.custom ? `<button type="button" class="add-pill" style="background:transparent;border-color:var(--border);color:var(--text5);margin-right:4px" onclick="deleteCustomEx('${e.name.replace(/'/g,"\\'")}',event)"><i class="ti ti-trash" style="font-size:11px"></i></button>` : ''}
-          <button type="button" class="add-pill" onclick="openSheet('${e.name.replace(/'/g,"\\'")}','${e.muscle}')">
+          <button type="button" class="add-pill" onclick="openSheetFromRow(this,'${e.name.replace(/'/g,"\\'")}','${e.muscle}')">
             <i class="ti ti-plus" style="font-size:11px"></i> Add
           </button>
         </div>`;
@@ -3055,11 +3143,18 @@ const ROUTINES = [
 ];
 let pendingEx = null, selRoutine = null, selDay = null;
 
-function openSheet(name, muscle) {
-  pendingEx = {name, muscle};
+function openSheetFromRow(btn, name, muscle) {
+  const row = btn.closest('.ex-row');
+  const eqChip = row ? row.querySelector('[data-eq]') : null;
+  const equipment = eqChip ? eqChip.dataset.eq : getEquipment(EXERCISES.find(e=>e.name===name)?.tags || '');
+  openSheet(name, muscle, equipment);
+}
+function openSheet(name, muscle, equipment) {
+  const eq = equipment || getEquipment(EXERCISES.find(e=>e.name===name)?.tags || '');
+  pendingEx = {name, muscle, equipment: eq};
   selRoutine = null; selDay = null;
   document.getElementById('sheet-ex-name').textContent = 'Add ' + name;
-  document.getElementById('sheet-ex-sub').textContent = muscle + ' · Choose a routine and day';
+  document.getElementById('sheet-ex-sub').textContent = muscle + (eq ? ' · ' + eq : '') + ' · Choose a routine and day';
   document.getElementById('confirm-btn').disabled = true;
   renderSheet();
   document.getElementById('add-overlay').classList.add('show');
@@ -3074,25 +3169,19 @@ function handleOverlayClick(e) {
 function renderSheet() {
   const trackRow = (() => {
     if (!pendingEx) return '';
-    const data = getStrengthData(pendingEx.name);
+    const data = getStrengthData(pendingEx.name, pendingEx.equipment);
     const pr = data.length ? Math.max(...data.map(d => d.v)) : null;
     const sessions = data.length;
-    const sub = sessions === 0
-      ? 'No sessions logged yet'
-      : `${sessions} session${sessions===1?'':'s'} · PR ${pr} lbs`;
-    return `<div onclick="showExProgressModal('${pendingEx.name.replace(/'/g,"\\'")}','${pendingEx.muscle}')"
-      style="display:flex;align-items:center;gap:12px;padding:12px 16px;margin:0 0 12px;border-radius:14px;background:var(--card2);border:0.5px solid var(--border);cursor:pointer">
-      <div style="width:36px;height:36px;border-radius:10px;background:var(--accent-dim);border:0.5px solid var(--accent-border);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-        <i class="ti ti-chart-line" style="color:var(--accent);font-size:17px"></i>
-      </div>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:700;color:var(--text)">Track over time</div>
-        <div style="font-size:11px;color:var(--text5);margin-top:1px">${sub}</div>
-      </div>
-      <i class="ti ti-chevron-right" style="color:var(--text5);font-size:15px"></i>
+    const sub = sessions === 0 ? 'No history yet' : `${sessions} session${sessions===1?'':'s'} · PR ${pr} lbs`;
+    return `<div onclick="showExProgressModal('${pendingEx.name.replace(/'/g,"\\'")}','${pendingEx.muscle}','${(pendingEx.equipment||'').replace(/'/g,"\\'")}')"
+      style="display:flex;align-items:center;gap:9px;padding:10px 12px;margin-top:10px;border-radius:10px;border:0.5px solid var(--border2);cursor:pointer;color:var(--text5)">
+      <i class="ti ti-chart-line" style="font-size:13px;flex-shrink:0"></i>
+      <span style="font-size:12px;color:var(--text4)">Track over time</span>
+      <span style="font-size:11px;color:var(--text5);margin-left:2px">· ${sub}</span>
+      <i class="ti ti-chevron-right" style="font-size:12px;margin-left:auto"></i>
     </div>`;
   })();
-  document.getElementById('sheet-body').innerHTML = trackRow +
+  document.getElementById('sheet-body').innerHTML =
     ROUTINES.map((r, ri) => `
       <div class="routine-opt${selRoutine === ri ? ' sel' : ''}" onclick="pickRoutine(${ri})">
         <div class="r-icon">${r.icon}</div>
@@ -3107,7 +3196,7 @@ function renderSheet() {
             `<button type="button" class="d-chip${selDay === di ? ' sel' : ''}" onclick="pickDay(${di})">${d}</button>`
           ).join('')}
         </div>
-      </div>` : '');
+      </div>` : '') + trackRow;
 }
 function pickRoutine(ri) { selRoutine = ri; selDay = null; document.getElementById('confirm-btn').disabled = true; renderSheet(); }
 function pickDay(di) { selDay = di; document.getElementById('confirm-btn').disabled = false; renderSheet(); }
@@ -3121,10 +3210,10 @@ function confirmAdd() {
 // ─────────────────────────────────────────
 // EXERCISE PROGRESS MODAL
 // ─────────────────────────────────────────
-function showExProgressModal(name, muscle) {
+function showExProgressModal(name, muscle, equipment) {
   document.getElementById('exp-name').textContent = name;
-  document.getElementById('exp-sub').textContent = (muscle || '') + ' · Progress over time';
-  const data = getStrengthData(name);
+  document.getElementById('exp-sub').textContent = [muscle, equipment].filter(Boolean).join(' · ') + ' · Progress over time';
+  const data = getStrengthData(name, equipment);
   const body = document.getElementById('exp-body');
 
   if (!data.length) {
@@ -3304,12 +3393,16 @@ function getExercisesInLog() {
   return [...seen];
 }
 
-function getStrengthData(exName) {
+function getStrengthData(exName, equipment) {
   const src = getProgressLogSource();
   return src
-    .filter(e => e.exercises && e.exercises.some(ex => ex.name === exName))
+    .filter(e => e.exercises && e.exercises.some(x =>
+      x.name === exName && (!equipment || !x.equipment || x.equipment === equipment)
+    ))
     .map(e => {
-      const ex = e.exercises.find(x => x.name === exName);
+      const ex = e.exercises.find(x =>
+        x.name === exName && (!equipment || !x.equipment || x.equipment === equipment)
+      );
       const maxW = ex.sets.length ? Math.max(...ex.sets.map(s => s.w)) : 0;
       const lbl = new Date(e.timestamp).toLocaleDateString('en-US', {month:'short', day:'numeric'});
       return { w: lbl, v: maxW };
@@ -4255,15 +4348,17 @@ function renderFriendsTab() {
 function renderFtMyProfile() {
   const el = document.getElementById('ft-my-profile'); if (!el) return;
   const initials = (userProfile.name||'?').slice(0,2).toUpperCase();
+  const avColor = userProfile.avatarColor || '#4fc4a8';
   const streak = getUserStreak();
   const weekly = getUserWeeklyStats();
   el.innerHTML = `
     <div class="ft-my-card" style="position:relative">
-      <div class="ft-my-av">${initials}</div>
+      <div class="ft-my-av" style="background:${avColor}">${initials}</div>
       <div style="flex:1;min-width:0">
         <div class="ft-my-name">${userProfile.name||'You'}</div>
         <div class="ft-my-handle">@${userProfile.username||'—'}</div>
-        <div class="ft-my-stats">
+        ${userProfile.bio ? `<div style="font-size:11px;color:var(--text4);margin-top:3px;line-height:1.4">${userProfile.bio}</div>` : ''}
+        <div class="ft-my-stats" style="margin-top:${userProfile.bio?'6':'0'}px">
           <div class="ft-stat"><b>${streak}</b> day streak</div>
           <div class="ft-stat"><b>${weekly.workouts}</b> this week</div>
           <div class="ft-stat"><b>${friendsList.length}</b> friends</div>
@@ -4281,12 +4376,44 @@ function renderFtMyProfile() {
 function openSettings() {
   const p = userProfile;
   const el = id => document.getElementById(id);
-  // Profile
-  if (el('settings-email-display')) el('settings-email-display').textContent = activeAccountEmail || '';
-  if (el('settings-email-sub'))    el('settings-email-sub').textContent    = activeAccountEmail || '';
-  if (el('settings-username'))     el('settings-username').value           = p.username || '';
-  if (el('account-phone'))         el('account-phone').value               = p.phone || '';
-  if (el('settings-username-err')) el('settings-username-err').style.display = 'none';
+  // Profile preview
+  const avColor = p.avatarColor || '#4fc4a8';
+  const initials = (p.name||'?').slice(0,2).toUpperCase();
+  const avPrev = el('settings-avatar-preview');
+  if (avPrev) { avPrev.textContent = initials; avPrev.style.background = avColor; }
+  if (el('settings-name-preview'))   el('settings-name-preview').textContent   = p.name || 'Your Name';
+  if (el('settings-handle-preview')) el('settings-handle-preview').textContent = '@'+(p.username||'—');
+  if (el('settings-email-display'))  el('settings-email-display').textContent  = activeAccountEmail || '';
+  if (el('settings-email-sub'))      el('settings-email-sub').textContent      = activeAccountEmail || '';
+  // Avatar color
+  document.querySelectorAll('#avatar-color-row button').forEach(btn => {
+    btn.style.borderColor = btn.dataset.color === avColor ? 'var(--text)' : 'transparent';
+    btn.style.transform   = btn.dataset.color === avColor ? 'scale(1.18)' : 'scale(1)';
+  });
+  // Display name, username, bio, phone
+  if (el('settings-display-name'))  el('settings-display-name').value  = p.name || '';
+  if (el('settings-username'))      el('settings-username').value       = p.username || '';
+  if (el('settings-bio'))           el('settings-bio').value            = p.bio || '';
+  if (el('account-phone'))          el('account-phone').value           = p.phone || '';
+  if (el('settings-username-err'))  el('settings-username-err').style.display = 'none';
+  // Training goal buttons
+  const GOALS = ['Build muscle','Lose fat','Get stronger','Improve endurance','General fitness'];
+  const goalEl = el('settings-goal-btns');
+  if (goalEl) goalEl.innerHTML = GOALS.map(g =>
+    `<button type="button" onclick="setTrainingGoal('${g}')" style="padding:7px 13px;border-radius:20px;border:0.5px solid ${g===p.goal?'var(--accent-border)':'var(--border)'};background:${g===p.goal?'var(--accent-dim)':'var(--card)'};color:${g===p.goal?'var(--accent)':'var(--text4)'};font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .12s">${g}</button>`
+  ).join('');
+  // Experience buttons
+  const EXPS = ['Beginner','Intermediate','Advanced'];
+  const expEl = el('settings-exp-btns');
+  if (expEl) expEl.innerHTML = EXPS.map(ex =>
+    `<button type="button" onclick="setExperience('${ex}')" style="flex:1;padding:8px;border-radius:10px;border:0.5px solid ${ex===p.experience?'var(--accent-border)':'var(--border)'};background:${ex===p.experience?'var(--accent-dim)':'var(--card)'};color:${ex===p.experience?'var(--accent)':'var(--text4)'};font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .12s">${ex}</button>`
+  ).join('');
+  // Theme
+  const theme = p.theme || 'dark';
+  ['dark','light'].forEach(t => {
+    const btn = el('theme-'+t);
+    if (btn) { btn.className = t===theme ? 'seg-active' : ''; btn.style.color = t===theme ? '#0a1a15' : 'var(--text3)'; }
+  });
   // Weight unit
   const unit = p.weightUnit || 'lbs';
   ['lbs','kg'].forEach(u => {
@@ -4396,6 +4523,85 @@ function setRestDefault(secs) {
   });
   const label = secs < 120 ? secs+'s' : (secs/60)+'m';
   showToast('Rest timer set to '+label);
+}
+
+function saveDisplayName() {
+  const input = document.getElementById('settings-display-name');
+  if (!input) return;
+  const val = input.value.trim();
+  if (!val) { showToast('Name cannot be empty'); return; }
+  userProfile.name = val;
+  saveState();
+  pushUserToFirebase();
+  // Update settings preview
+  const prev = document.getElementById('settings-name-preview');
+  if (prev) prev.textContent = val;
+  const avPrev = document.getElementById('settings-avatar-preview');
+  if (avPrev) avPrev.textContent = val.slice(0,2).toUpperCase();
+  renderFtMyProfile();
+  showToast('Name saved');
+}
+
+function saveBio() {
+  const input = document.getElementById('settings-bio');
+  if (!input) return;
+  userProfile.bio = input.value.slice(0,80);
+  saveState();
+  pushUserToFirebase();
+  renderFtMyProfile();
+  showToast('Bio saved');
+}
+
+function setAvatarColor(color) {
+  userProfile.avatarColor = color;
+  saveState();
+  // Update all avatar color swatches
+  document.querySelectorAll('#avatar-color-row button').forEach(btn => {
+    const active = btn.dataset.color === color;
+    btn.style.borderColor = active ? 'var(--text)' : 'transparent';
+    btn.style.transform   = active ? 'scale(1.18)' : 'scale(1)';
+  });
+  // Update settings avatar preview
+  const avPrev = document.getElementById('settings-avatar-preview');
+  if (avPrev) avPrev.style.background = color;
+  renderFtMyProfile();
+}
+
+function setTheme(theme) {
+  userProfile.theme = theme;
+  saveState();
+  if (theme === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+  }
+  ['dark','light'].forEach(t => {
+    const btn = document.getElementById('theme-'+t);
+    if (!btn) return;
+    const active = t === theme;
+    btn.className = active ? 'seg-active' : '';
+    btn.style.color = active ? '#0a1a15' : 'var(--text3)';
+  });
+}
+
+function setTrainingGoal(goal) {
+  userProfile.goal = goal;
+  saveState();
+  const GOALS = ['Build muscle','Lose fat','Get stronger','Improve endurance','General fitness'];
+  const goalEl = document.getElementById('settings-goal-btns');
+  if (goalEl) goalEl.innerHTML = GOALS.map(g =>
+    `<button type="button" onclick="setTrainingGoal('${g}')" style="padding:7px 13px;border-radius:20px;border:0.5px solid ${g===goal?'var(--accent-border)':'var(--border)'};background:${g===goal?'var(--accent-dim)':'var(--card)'};color:${g===goal?'var(--accent)':'var(--text4)'};font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .12s">${g}</button>`
+  ).join('');
+}
+
+function setExperience(exp) {
+  userProfile.experience = exp;
+  saveState();
+  const EXPS = ['Beginner','Intermediate','Advanced'];
+  const expEl = document.getElementById('settings-exp-btns');
+  if (expEl) expEl.innerHTML = EXPS.map(e =>
+    `<button type="button" onclick="setExperience('${e}')" style="flex:1;padding:8px;border-radius:10px;border:0.5px solid ${e===exp?'var(--accent-border)':'var(--border)'};background:${e===exp?'var(--accent-dim)':'var(--card)'};color:${e===exp?'var(--accent)':'var(--text4)'};font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .12s">${e}</button>`
+  ).join('');
 }
 
 function toggleNotif(key) {
@@ -4784,23 +4990,34 @@ function renderWktAddList(q='') {
     (wktAddFilter==='All' || e.muscle===wktAddFilter) && matchesSearch(e, q)
   );
   document.getElementById('wkt-add-list').innerHTML = list.length
-    ? list.map(e=>`
-      <div class="ex-row" onclick="addExToWorkout('${e.name.replace(/'/g,"\\'")}','${e.muscle.replace(/'/g,"\\'")}')">
+    ? list.map(e=>{
+        const equip = getEquipment(e.tags);
+        const eqChipBase = 'font-size:10px;font-weight:500;padding:1px 6px;border-radius:5px;border:0.5px solid rgba(255,255,255,.09);background:transparent;color:var(--text5);letter-spacing:.01em;white-space:nowrap;cursor:pointer;transition:opacity .15s';
+        const eqChip = `<span style="${eqChipBase}" data-eq="${equip}" onclick="cycleExRowEquip(this,event)">${equip}</span>`;
+        return `
+      <div class="ex-row" onclick="addExToWorkoutFromRow(this,'${e.name.replace(/'/g,"\\'")}','${e.muscle.replace(/'/g,"\\'")}')">
         <div class="mdot" style="background:${e.color}"></div>
         <div style="flex:1;min-width:0">
           <div class="ex-name">${e.name}</div>
-          <div class="ex-meta">${e.muscle} · ${e.tags}</div>
+          <div class="ex-meta" style="display:flex;align-items:center;gap:5px">${e.muscle} · ${eqChip}</div>
         </div>
         <div class="add-pill"><i class="ti ti-plus" style="font-size:11px"></i> Add</div>
-      </div>`).join('')
+      </div>`;}).join('')
     : '<div style="color:var(--text5);font-size:13px;text-align:center;padding:30px 0">No exercises found</div>';
 }
-function addExToWorkout(name, muscle) {
+function addExToWorkoutFromRow(el, name, muscle) {
+  const row = el.closest('.ex-row');
+  const eqChip = row ? row.querySelector('[data-eq]') : null;
+  const equipment = eqChip ? eqChip.dataset.eq : getEquipment(EXERCISES.find(e=>e.name===name)?.tags || '');
+  addExToWorkout(name, muscle, equipment);
+}
+function addExToWorkout(name, muscle, equipment) {
   if (supersetPickEi !== null) { confirmSuperset(name, muscle); return; }
-  const last = getLastSession(name, getActiveRoutineLogSrc());
+  const eq = equipment || getEquipment(EXERCISES.find(e=>e.name===name)?.tags || '');
+  const last = getLastSession(name, getActiveRoutineLogSrc(), eq);
   const defaultW = last && last.sets[0] ? last.sets[0].w : 0;
   wktData.push({
-    name, muscle, open:true, hasPR:false, isNew:true, lastOpen:false, last,
+    name, muscle, equipment: eq, open:true, hasPR:false, isNew:true, lastOpen:false, last,
     sets:[
       {w:defaultW, h:[null,null,null,null]},
       {w:defaultW, h:[null,null,null,null]},
@@ -5833,7 +6050,7 @@ function renderWkt() {
       <div class="ex-hd" onclick="toggleEx(${ei})">
         <div>
           <div class="ex-hd-name">${ex.name}${ex.hasPR ? '<span class="pr-ex-badge">PR</span>' : ''}${ex.supersetId ? '<span class="pr-ex-badge" style="background:var(--accent-dim);color:var(--accent-dark);border-color:var(--accent-border)">⇄ SS</span>' : ''}</div>
-          <div class="ex-hd-sub" style="display:flex;align-items:center;gap:6px">${ex.muscle} · ${typeChipHtml(ex.type || getMovementType(ex.name,''), `event.stopPropagation();cycleWktExType(${ei})`)}</div>
+          <div class="ex-hd-sub" style="display:flex;align-items:center;gap:6px">${ex.muscle}${ex.equipment ? ' · ' + ex.equipment : ''} · ${typeChipHtml(ex.type || getMovementType(ex.name,''), `event.stopPropagation();cycleWktExType(${ei})`)}</div>
           ${lastHint ? `<div class="ex-last-inline">${lastHint}</div>` : ''}
         </div>
         <div class="ex-hd-right">
@@ -7467,7 +7684,8 @@ function startRoutineDay(routineId, dayIdx) {
       }
       return { w: lastW, h, rirH: [null, null, null, null] };
     });
-    return { name: e.name, muscle: e.muscle || '', open: i === 0, hasPR: false, isNew: false, lastOpen: false, last, sets };
+    const eq2 = e.equipment || getEquipment(EXERCISES.find(x=>x.name===e.name)?.tags || '');
+    return { name: e.name, muscle: e.muscle || '', equipment: eq2, open: i === 0, hasPR: false, isNew: false, lastOpen: false, last, sets };
   });
   const wktTitle = document.getElementById('wkt-title');
   if (wktTitle) wktTitle.textContent = day.label + (r.week > 1 ? ' — Week ' + r.week : '');
@@ -7482,12 +7700,14 @@ function startRoutineDay(routineId, dayIdx) {
   openMoreMenuEi = null; dropPickModeEi = null; bwPickModeEi = null; supersetPickEi = null;
   goWorkout();
 }
-function getLastSession(exerciseName, logSrc) {
+function getLastSession(exerciseName, logSrc, equipment) {
   const src = logSrc || logEntries;
   for (let i = src.length - 1; i >= 0; i--) {
     const entry = src[i];
     if (!entry.exercises) continue;
-    const ex = entry.exercises.find(x => x.name === exerciseName);
+    const ex = entry.exercises.find(x =>
+      x.name === exerciseName && (!equipment || !x.equipment || x.equipment === equipment)
+    );
     if (ex && ex.sets.length) return ex;
   }
   return null;
@@ -7500,10 +7720,10 @@ function loadRoutineWorkout(r) {
   const exs = todayDay.exercises;
   const rLogSrc = r.owner === 'client' ? (r.clientLog || []) : logEntries;
   wktData = exs.map((e, i) => {
-    const last = getLastSession(e.name, rLogSrc);
+    const equipment = e.equipment || getEquipment(EXERCISES.find(x=>x.name===e.name)?.tags || '');
+    const last = getLastSession(e.name, rLogSrc, equipment);
     const sets = Array.from({length: e.sets}, (_, si) => {
       const lastW = last && last.sets[si] ? last.sets[si].w : (e.w || 0);
-      // hydrate previous week columns from log history
       const h = [null, null, null, null];
       for (let w = 0; w < CUR; w++) {
         const entry = rLogSrc.find(le =>
@@ -7517,7 +7737,7 @@ function loadRoutineWorkout(r) {
       }
       return { w: lastW, h, rirH: [null, null, null, null] };
     });
-    return { name: e.name, muscle: e.muscle || '', open: i === 0, hasPR: false, isNew: false, lastOpen: false, last, sets };
+    return { name: e.name, muscle: e.muscle || '', equipment, open: i === 0, hasPR: false, isNew: false, lastOpen: false, last, sets };
   });
   const wktTitle = document.getElementById('wkt-title');
   if (wktTitle) wktTitle.textContent = todayDay.label + (r.week > 1 ? ' — Week ' + r.week : '');
@@ -7551,6 +7771,7 @@ function addLogEntry(dayLabel, routineName) {
     exercises: wktData.map(ex => ({
       name: ex.name,
       muscle: ex.muscle,
+      equipment: ex.equipment || undefined,
       sets: ex.sets.flatMap(s => {
         const rows = [];
         if (s.h[CUR] !== null) rows.push({w:s.w, reps:s.h[CUR], ...(s.rirH?.[CUR] != null ? {rir:s.rirH[CUR]} : {}), ...(s.warmup ? {warmup:true} : {})});
@@ -7586,6 +7807,7 @@ function addClientLogEntry(r, dayLabel, routineName) {
     exercises: wktData.map(ex => ({
       name: ex.name,
       muscle: ex.muscle,
+      equipment: ex.equipment || undefined,
       sets: ex.sets.flatMap(s => {
         const rows = [];
         if (s.h[CUR] !== null) rows.push({w:s.w, reps:s.h[CUR], ...(s.rirH?.[CUR] != null ? {rir:s.rirH[CUR]} : {}), ...(s.warmup ? {warmup:true} : {})});
@@ -8408,6 +8630,12 @@ function loadState() {
     if (nl) nutritionLog = JSON.parse(nl);
     const fh = localStorage.getItem(getStorageKey('foodhist'));
     if (fh) foodHistory = JSON.parse(fh);
+    // Apply saved theme
+    if (userProfile.theme === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
   } catch(e) {}
 }
 
@@ -8478,6 +8706,11 @@ async function _bootWithEmail(email) {
     renderRoutineList(); renderLog(); renderLogStats(); buildHeatmap();
     checkActiveWorkout();
     checkRoutineFromUrl();
+    // Show Contacts import button only when browser supports Contact Picker API
+    if (navigator.contacts && navigator.contacts.select) {
+      const cb = document.getElementById('import-contacts-btn');
+      if (cb) cb.style.display = 'flex';
+    }
   } else {
     startOnboarding();
   }
