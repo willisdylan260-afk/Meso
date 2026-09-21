@@ -410,6 +410,8 @@ a, button, [role="button"], input, label, select, textarea {
 .rep-box.cur-wk{border-color:var(--accent-dark)}
 .rep-box.pr-box{background:var(--gold-dim);border-color:var(--gold-border)}
 .rep-box.empty-new{opacity:.35;border-style:dashed}
+.rep-box.timed-active{background:var(--accent-dim);border-color:var(--accent);animation:timed-pulse .9s ease-in-out infinite}
+@keyframes timed-pulse{0%,100%{border-color:var(--accent)}50%{border-color:var(--accent-dark)}}
 .rep-val{font-size:15px;font-weight:600;color:var(--text3);line-height:1}
 .rep-box.logged .rep-val{color:var(--accent)}
 .rep-box.pr-box .rep-val{color:var(--gold)}
@@ -5501,6 +5503,7 @@ let openMoreMenuEi = null;
 let dropPickModeEi = null;
 let bwPickModeEi = null;
 let timedPickModeEi = null;
+let _timedCountdown = null; // { ei, si, target, startedAt, iv }
 let supersetPickEi = null;
 let _repPressTimer = null, _repPressLong = false, _repPressWasTouch = false;
 // _1rmSheetEi replaced by _exToolsEi
@@ -5551,6 +5554,7 @@ function startWorkout() {
 function stopWorkout() {
   clearInterval(wktIv);
   clearInterval(restIv); restIv = null; restEndTime = null;
+  if (_timedCountdown) { clearInterval(_timedCountdown.iv); _timedCountdown = null; }
   _cancelRestNotif();
   releaseWakeLock();
   clearActiveWorkout();
@@ -5861,6 +5865,12 @@ function cancelTimedPick() {
   timedPickModeEi = null;
   renderWkt();
 }
+function cancelTimedCountdown() {
+  if (!_timedCountdown) return;
+  clearInterval(_timedCountdown.iv);
+  _timedCountdown = null;
+  renderWkt();
+}
 function applyTimedFromPick(ei, si) {
   const s = wktData[ei].sets[si];
   s.timed = !s.timed;
@@ -5873,15 +5883,48 @@ function applyTimedFromPick(ei, si) {
 }
 function cycleTimedDuration(ei, si) {
   const s = wktData[ei].sets[si];
-  const prev = s.h[CUR];
-  const idx = DURATION_OPTS.indexOf(prev);
+  const idx = DURATION_OPTS.indexOf(s.h[CUR]);
   s.h[CUR] = DURATION_OPTS[(idx + 1) % DURATION_OPTS.length];
-  if (s.h[CUR] !== null) {
-    haptic(prev === null ? [40, 30, 20] : 20);
-    startRest(userProfile.restDefault || 90);
+  haptic(s.h[CUR] !== null ? 15 : 10);
+  renderWkt();
+  saveActiveWorkout();
+}
+function startTimedCountdown(ei, si) {
+  if (_timedCountdown) { clearInterval(_timedCountdown.iv); _timedCountdown = null; }
+  const target = wktData[ei].sets[si].h[CUR];
+  if (!target) return;
+  haptic(20);
+  _timedCountdown = {
+    ei, si, target,
+    startedAt: Date.now(),
+    iv: setInterval(() => {
+      const elapsed = Math.floor((Date.now() - _timedCountdown.startedAt) / 1000);
+      if (elapsed >= _timedCountdown.target) {
+        _stopTimedCountdown(ei, si, true);
+      } else {
+        renderWkt();
+      }
+    }, 250)
+  };
+  renderWkt();
+}
+function _stopTimedCountdown(ei, si, completed) {
+  if (!_timedCountdown) return;
+  clearInterval(_timedCountdown.iv);
+  const elapsed = Math.min(
+    Math.floor((Date.now() - _timedCountdown.startedAt) / 1000),
+    _timedCountdown.target
+  );
+  _timedCountdown = null;
+  const s = wktData[ei].sets[si];
+  s.h[CUR] = elapsed > 0 ? elapsed : 1;
+  if (completed) {
+    haptic([60, 40, 60]);
+    showToast('Set complete — ' + fmtDuration(elapsed) + ' held');
   } else {
-    haptic(10);
+    haptic(20);
   }
+  startRest(userProfile.restDefault || 90);
   renderWkt();
   saveActiveWorkout();
 }
@@ -6530,8 +6573,25 @@ function renderWkt() {
           if (ex.isNew && wi < CUR) cls += ' empty-new';
           let disp, sub;
           if (isTimedSet) {
-            disp = (ex.isNew && wi < CUR) ? '—' : r !== null ? fmtDuration(r) : '—';
-            sub = r !== null ? 'hold' : isCur ? 'tap' : '—';
+            if (isCur) {
+              const isRunning = _timedCountdown && _timedCountdown.ei === ei && _timedCountdown.si === si;
+              if (isRunning) {
+                const elapsed = Math.floor((Date.now() - _timedCountdown.startedAt) / 1000);
+                const remaining = Math.max(0, _timedCountdown.target - elapsed);
+                disp = fmtDuration(remaining);
+                sub = 'stop';
+                cls += ' timed-active';
+              } else if (r !== null) {
+                disp = fmtDuration(r);
+                sub = 'start';
+              } else {
+                disp = '—';
+                sub = 'tap';
+              }
+            } else {
+              disp = (ex.isNew && wi < CUR) ? '—' : r !== null ? fmtDuration(r) : '—';
+              sub = r !== null ? 'done' : '—';
+            }
           } else {
             disp = (ex.isNew && wi < CUR) ? '—' : r !== null ? r : '—';
             const rirVal = (isCur && s.rirH) ? s.rirH[CUR] : null;
@@ -6541,7 +6601,14 @@ function renderWkt() {
           let pressAttrs = '';
           if (isCur && !canPick && !canBWPick && !canTimedPick) {
             if (isTimedSet) {
-              pressAttrs = ` onclick="cycleTimedDuration(${ei},${si})"`;
+              const isRunning = _timedCountdown && _timedCountdown.ei === ei && _timedCountdown.si === si;
+              if (isRunning) {
+                pressAttrs = ` onclick="_stopTimedCountdown(${ei},${si},false)"`;
+              } else if (r !== null) {
+                pressAttrs = ` onclick="startTimedCountdown(${ei},${si})"`;
+              } else {
+                pressAttrs = ` onclick="cycleTimedDuration(${ei},${si})"`;
+              }
             } else {
               pressAttrs = ` ontouchstart="startRepPress(event,${ei},${si},false)" ontouchend="endRepPress(event,${ei},${si},false)" ontouchmove="cancelRepPress()" onmousedown="startRepPress(event,${ei},${si},false)" onmouseup="endRepPress(event,${ei},${si},false)" onmouseleave="cancelRepPress()" oncontextmenu="return false"`;
             }
