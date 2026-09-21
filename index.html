@@ -2581,7 +2581,7 @@ function startCustomWorkout() {
   wktData = [];
   const wktTitle = document.getElementById('wkt-title');
   if (wktTitle) wktTitle.textContent = 'Custom Workout';
-  openMoreMenuEi = null; dropPickModeEi = null; bwPickModeEi = null; supersetPickEi = null;
+  openMoreMenuEi = null; dropPickModeEi = null; bwPickModeEi = null; timedPickModeEi = null; supersetPickEi = null;
   goWorkout();
 }
 function finishWorkout() {
@@ -5476,6 +5476,7 @@ function confirmClearHistory() {
 const WEEKS = ['Wk 1','Wk 2','Wk 3','Wk 4'];
 let CUR = 0; // set dynamically from routine.week when loading a workout
 const REP_OPTS = [null,1,2,3,4,5,6,7,8,9,10,11,12,15,20];
+const DURATION_OPTS = [null,10,15,20,30,45,60,90,120,180,300];
 
 // Workout data — add/remove exercises here
 let wktData = [
@@ -5499,6 +5500,7 @@ let pendingLogRoutine = null;
 let openMoreMenuEi = null;
 let dropPickModeEi = null;
 let bwPickModeEi = null;
+let timedPickModeEi = null;
 let supersetPickEi = null;
 let _repPressTimer = null, _repPressLong = false, _repPressWasTouch = false;
 // _1rmSheetEi replaced by _exToolsEi
@@ -5789,6 +5791,7 @@ function toggleMoreMenu(ei) {
   openMoreMenuEi = openMoreMenuEi === ei ? null : ei;
   dropPickModeEi = null;
   bwPickModeEi = null;
+  timedPickModeEi = null;
   renderWkt();
 }
 
@@ -5843,6 +5846,44 @@ function applyBWFromPick(ei, si) {
   updateWktStats();
   saveActiveWorkout();
   renderWkt();
+}
+function fmtDuration(secs) {
+  if (secs == null) return '—';
+  const m = Math.floor(secs / 60), s = secs % 60;
+  return m + ':' + (s < 10 ? '0' : '') + s;
+}
+function enterTimedPickMode(ei) {
+  timedPickModeEi = ei;
+  openMoreMenuEi = null;
+  renderWkt();
+}
+function cancelTimedPick() {
+  timedPickModeEi = null;
+  renderWkt();
+}
+function applyTimedFromPick(ei, si) {
+  const s = wktData[ei].sets[si];
+  s.timed = !s.timed;
+  if (s.timed && s.h[CUR] === null) {
+    // pre-fill with 30s so the user sees something useful immediately
+    s.h[CUR] = null;
+  }
+  saveActiveWorkout();
+  renderWkt();
+}
+function cycleTimedDuration(ei, si) {
+  const s = wktData[ei].sets[si];
+  const prev = s.h[CUR];
+  const idx = DURATION_OPTS.indexOf(prev);
+  s.h[CUR] = DURATION_OPTS[(idx + 1) % DURATION_OPTS.length];
+  if (s.h[CUR] !== null) {
+    haptic(prev === null ? [40, 30, 20] : 20);
+    startRest(userProfile.restDefault || 90);
+  } else {
+    haptic(10);
+  }
+  renderWkt();
+  saveActiveWorkout();
 }
 function cycleDropRep(ei, si) {
   const drop = wktData[ei].sets[si].drop; if (!drop) return;
@@ -6434,6 +6475,7 @@ function renderWkt() {
         ${lastSection}`;
 
       const bwPickActive = bwPickModeEi === ei;
+      const timedPickActive = timedPickModeEi === ei;
 
       if (dropPickActive) {
         html += `<div class="pick-banner"><i class="ti ti-arrow-down-circle" style="font-size:14px"></i> Tap a set to add a drop<button type="button" class="pick-cancel" onclick="cancelDropPick()">Cancel</button></div>`;
@@ -6441,25 +6483,39 @@ function renderWkt() {
       if (bwPickActive) {
         html += `<div class="pick-banner"><span style="font-size:12px;font-weight:700;letter-spacing:.04em">BW</span> Tap a set to toggle bodyweight<button type="button" class="pick-cancel" onclick="cancelBWPick()">Cancel</button></div>`;
       }
+      if (timedPickActive) {
+        html += `<div class="pick-banner"><i class="ti ti-clock" style="font-size:14px"></i> Tap a set to toggle timed<button type="button" class="pick-cancel" onclick="cancelTimedPick()">Cancel</button></div>`;
+      }
 
       html += `<div class="wk-labels"><div class="wk-lbl">Set · wt</div>${WEEKS.map((w, i) => `<div class="wk-lbl${i === CUR ? ' cur' : ''}">${w}</div>`).join('')}</div>`;
 
       let wNum = 0, sNum = 0;
       ex.sets.forEach((s, si) => {
         const isWarmup = !!s.warmup;
+        const isTimedSet = !!s.timed;
         const lbl = isWarmup ? `W${++wNum}` : `S${++sNum}`;
         const canPick = dropPickActive && !s.drop;
         const canBWPick = bwPickActive && !isWarmup;
+        const canTimedPick = timedPickActive && !isWarmup;
 
         // Main set row
         const isBWSet = s.w === 'BW';
-        const rowExtra = canPick ? ` pick-target` : canBWPick ? ` pick-target` : '';
-        const rowClick = canPick ? ` onclick="addDropToSet(${ei},${si})"` : canBWPick ? ` onclick="applyBWFromPick(${ei},${si})"` : '';
+        const rowExtra = canPick ? ` pick-target` : canBWPick ? ` pick-target` : canTimedPick ? ` pick-target` : '';
+        const rowClick = canPick ? ` onclick="addDropToSet(${ei},${si})"` : canBWPick ? ` onclick="applyBWFromPick(${ei},${si})"` : canTimedPick ? ` onclick="applyTimedFromPick(${ei},${si})"` : '';
         html += `<div class="set-row-wrap${isWarmup ? ' wup-wrap' : ''}${rowExtra}"${rowClick}>`;
         html += `<div class="set-row-grid"><div class="set-info">`;
-        html += `<span class="set-num${isWarmup ? ' wup-num' : ''}${isBWSet ? ' bw-active-num' : ''}">${lbl}</span>`;
-        if (isBWSet) {
+        const setNumClass = `set-num${isWarmup ? ' wup-num' : ''}${isBWSet ? ' bw-active-num' : ''}`;
+        if (isTimedSet) {
+          html += `<span class="${setNumClass}" style="position:relative">${lbl}<i class="ti ti-clock" style="font-size:8px;position:absolute;top:-2px;right:-6px;color:var(--accent)"></i></span>`;
+        } else {
+          html += `<span class="${setNumClass}">${lbl}</span>`;
+        }
+        if (isBWSet && isTimedSet) {
+          html += `<span style="font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.02em">BW ⏱</span>`;
+        } else if (isBWSet) {
           html += `<span style="font-size:13px;font-weight:700;color:var(--accent);letter-spacing:.02em">BW</span>`;
+        } else if (isTimedSet) {
+          html += `<span style="font-size:11px;font-weight:600;color:var(--accent);letter-spacing:.02em">⏱</span>`;
         } else {
           html += `<input class="w-input" type="number" value="${s.w}" min="0" step="5" oninput="wktData[${ei}].sets[${si}].w=parseFloat(this.value)||0;updateWktStats();saveActiveWorkout()">`;
           html += `<span class="w-unit">lb</span>`;
@@ -6467,18 +6523,29 @@ function renderWkt() {
         html += `</div>`;
         WEEKS.forEach((w, wi) => {
           const r = s.h[wi]; const isCur = wi === CUR;
-          const pr = isCur && !isWarmup && isPR(ei, si);
+          const pr = isCur && !isWarmup && !isTimedSet && isPR(ei, si);
           let cls = 'rep-box';
           if (pr) cls += ' pr-box'; else if (r !== null) cls += ' logged';
           if (isCur) cls += ' cur-wk';
           if (ex.isNew && wi < CUR) cls += ' empty-new';
-          const disp = (ex.isNew && wi < CUR) ? '—' : r !== null ? r : '—';
-          const rirVal = (isCur && s.rirH) ? s.rirH[CUR] : null;
-          const rirSub = rirVal != null ? (rirVal === 0 ? '@ fail' : `@ ${rirVal >= 5 ? '5+' : rirVal}`) : null;
-          const sub = pr === 'rep' ? 'Rep PR' : pr ? 'PR' : r !== null ? (rirSub || 'done') : isCur ? 'tap' : '—';
-          const pressAttrs = isCur && !canPick && !canBWPick
-            ? ` ontouchstart="startRepPress(event,${ei},${si},false)" ontouchend="endRepPress(event,${ei},${si},false)" ontouchmove="cancelRepPress()" onmousedown="startRepPress(event,${ei},${si},false)" onmouseup="endRepPress(event,${ei},${si},false)" onmouseleave="cancelRepPress()" oncontextmenu="return false"`
-            : '';
+          let disp, sub;
+          if (isTimedSet) {
+            disp = (ex.isNew && wi < CUR) ? '—' : r !== null ? fmtDuration(r) : '—';
+            sub = r !== null ? 'hold' : isCur ? 'tap' : '—';
+          } else {
+            disp = (ex.isNew && wi < CUR) ? '—' : r !== null ? r : '—';
+            const rirVal = (isCur && s.rirH) ? s.rirH[CUR] : null;
+            const rirSub = rirVal != null ? (rirVal === 0 ? '@ fail' : `@ ${rirVal >= 5 ? '5+' : rirVal}`) : null;
+            sub = pr === 'rep' ? 'Rep PR' : pr ? 'PR' : r !== null ? (rirSub || 'done') : isCur ? 'tap' : '—';
+          }
+          let pressAttrs = '';
+          if (isCur && !canPick && !canBWPick && !canTimedPick) {
+            if (isTimedSet) {
+              pressAttrs = ` onclick="cycleTimedDuration(${ei},${si})"`;
+            } else {
+              pressAttrs = ` ontouchstart="startRepPress(event,${ei},${si},false)" ontouchend="endRepPress(event,${ei},${si},false)" ontouchmove="cancelRepPress()" onmousedown="startRepPress(event,${ei},${si},false)" onmouseup="endRepPress(event,${ei},${si},false)" onmouseleave="cancelRepPress()" oncontextmenu="return false"`;
+            }
+          }
           html += `<div class="${cls}"${pressAttrs}><div class="rep-val">${disp}</div><div class="rep-sub">${sub}</div></div>`;
         });
         html += `</div>`;
@@ -6528,6 +6595,7 @@ function renderWkt() {
           <button type="button" class="more-item" onclick="enterDropPickMode(${ei})"><span class="more-icon drop-icon">↓</span> Add drop set</button>
           <button type="button" class="more-item" onclick="addWarmupSet(${ei})"><span class="more-icon wup-icon">W</span> Add warm-up set</button>
           <button type="button" class="more-item" onclick="enterBWPickMode(${ei})"><span class="more-icon" style="font-size:10px;font-weight:700;color:var(--accent)">BW</span> Bodyweight set</button>
+          <button type="button" class="more-item" onclick="enterTimedPickMode(${ei})"><i class="ti ti-clock" style="font-size:14px;color:var(--accent);width:20px;text-align:center"></i> Timed set</button>
           <button type="button" class="more-item" onclick="openExTools(${ei},'warmup')"><span class="more-icon wup-icon">W</span> Warmup Calculator</button>
           <button type="button" class="more-item" onclick="openExTools(${ei},'onerm')"><span class="more-icon" style="font-size:10px;font-weight:700;color:var(--text3)">1RM</span> Estimate 1RM</button>
           <button type="button" class="more-item" onclick="openProgRuleSheet(${ei})"><i class="ti ti-settings-automation" style="font-size:14px;color:var(--text3);width:20px;text-align:center"></i> Progression rules</button>
@@ -8078,7 +8146,7 @@ function startRoutineDay(routineId, dayIdx) {
     } else { banner.style.display = 'none'; }
   }
   pendingLogRoutine = { routineId: r.id, dayLabel: day.label, week: CUR + 1 };
-  openMoreMenuEi = null; dropPickModeEi = null; bwPickModeEi = null; supersetPickEi = null;
+  openMoreMenuEi = null; dropPickModeEi = null; bwPickModeEi = null; timedPickModeEi = null; supersetPickEi = null;
   goWorkout();
 }
 function getLastSession(exerciseName, logSrc, equipment) {
@@ -8155,7 +8223,7 @@ function addLogEntry(dayLabel, routineName) {
       equipment: ex.equipment || undefined,
       sets: ex.sets.flatMap(s => {
         const rows = [];
-        if (s.h[CUR] !== null) rows.push({w:s.w, reps:s.h[CUR], ...(s.rirH?.[CUR] != null ? {rir:s.rirH[CUR]} : {}), ...(s.warmup ? {warmup:true} : {})});
+        if (s.h[CUR] !== null) rows.push({w:s.w, reps:s.h[CUR], ...(s.rirH?.[CUR] != null ? {rir:s.rirH[CUR]} : {}), ...(s.warmup ? {warmup:true} : {}), ...(s.timed ? {timed:true} : {})});
         if (s.drop && s.drop.h[CUR] !== null) rows.push({w:s.drop.w, reps:s.drop.h[CUR], ...(s.drop.rirH?.[CUR] != null ? {rir:s.drop.rirH[CUR]} : {}), drop:true});
         return rows;
       })
@@ -8191,7 +8259,7 @@ function addClientLogEntry(r, dayLabel, routineName) {
       equipment: ex.equipment || undefined,
       sets: ex.sets.flatMap(s => {
         const rows = [];
-        if (s.h[CUR] !== null) rows.push({w:s.w, reps:s.h[CUR], ...(s.rirH?.[CUR] != null ? {rir:s.rirH[CUR]} : {}), ...(s.warmup ? {warmup:true} : {})});
+        if (s.h[CUR] !== null) rows.push({w:s.w, reps:s.h[CUR], ...(s.rirH?.[CUR] != null ? {rir:s.rirH[CUR]} : {}), ...(s.warmup ? {warmup:true} : {}), ...(s.timed ? {timed:true} : {})});
         if (s.drop && s.drop.h[CUR] !== null) rows.push({w:s.drop.w, reps:s.drop.h[CUR], ...(s.drop.rirH?.[CUR] != null ? {rir:s.drop.rirH[CUR]} : {}), drop:true});
         return rows;
       })
@@ -8247,7 +8315,7 @@ function renderLog() {
         ? e.exercises.map(ex => `
           <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
             <div style="font-size:12px;font-weight:600;color:var(--text2);min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ex.name}</div>
-            <div style="font-size:11px;color:var(--text4);flex-shrink:0">${ex.sets.map(s=>(s.warmup?'W:':s.drop?'↓':'')+s.w+'×'+s.reps).join(', ')}</div>
+            <div style="font-size:11px;color:var(--text4);flex-shrink:0">${ex.sets.map(s=>(s.warmup?'W:':s.drop?'↓':'')+s.w+'×'+(s.timed?fmtDuration(s.reps):s.reps)).join(', ')}</div>
           </div>`).join('')
         : '';
       detail = `<div style="margin-top:10px;border-top:0.5px solid var(--border2);padding-top:10px;display:flex;flex-direction:column;gap:6px">
