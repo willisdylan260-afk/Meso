@@ -7366,6 +7366,7 @@ function renderDayList(r) {
           ${varPill}
           <div class="rd-day-name" onclick="event.stopPropagation();rdRenameDay(${i})" title="Tap to rename">${d.label}</div>
           <div class="rd-day-count">${exs.length} ex</div>
+          <button type="button" class="rd-icon-btn" onclick="event.stopPropagation();rdCopyDay(${i})" aria-label="Copy workout" style="color:var(--text4)"><i class="ti ti-copy" style="font-size:13px"></i></button>
           <button type="button" class="rd-icon-btn del" onclick="event.stopPropagation();rdDeleteDay(${i})" aria-label="Delete workout"><i class="ti ti-trash" style="font-size:13px"></i></button>
           <i class="ti ti-chevron-down rd-chevron${isOpen ? ' open' : ''}" id="rd-chev-${i}"></i>
         </div>
@@ -7713,6 +7714,24 @@ function saveExSets() {
   renderDayList(r);
   closeExSetsEditor();
   showToast('Updated');
+}
+
+// ── COPY WORKOUT DAY ──
+function rdCopyDay(dayIdx) {
+  const r = userRoutines.find(r => r.id === viewingRoutineId);
+  if (!r) return;
+  const src = r.days[dayIdx];
+  const copy = JSON.parse(JSON.stringify(src)); // deep clone
+  copy.label = src.label + ' Copy';
+  copy.done  = false;
+  copy.doneTimestamp = null;
+  r.days.splice(dayIdx + 1, 0, copy);
+  r.daysPerWeek = r.days.length;
+  saveState();
+  renderDayList(r);
+  renderRoutineList();
+  document.getElementById('rd-meta').textContent = r.daysPerWeek + ' days/week · ' + r.goal;
+  showToast('"' + src.label + '" copied');
 }
 
 // ── DELETE WORKOUT DAY ──
