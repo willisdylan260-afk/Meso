@@ -12,6 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="Forge">
 <link rel="apple-touch-icon" href="icon.svg">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <!-- Firebase SDK — Auth (session persistence) + Realtime DB (user discovery) -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
@@ -4849,11 +4850,48 @@ function openShareRoutineSheet(rid) {
       </div>`;
     }).join('') : `<div style="color:var(--text4);font-size:13px;padding:12px 0">Add friends first to send them routines</div>`}
     <div style="margin-top:16px;padding-top:14px;border-top:0.5px solid var(--border2)">
-      <div style="font-size:11px;color:var(--text5);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Or share a link</div>
-      <button type="button" onclick="copyRoutineLink(${rid})" style="width:100%;padding:13px;background:var(--card2);border:0.5px solid var(--border);border-radius:12px;color:var(--text);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px"><i class="ti ti-link"></i> Copy shareable link</button>
-      <div style="font-size:11px;color:var(--text5);text-align:center;margin-top:7px">Anyone with the link can add this routine</div>
+      <div style="font-size:11px;color:var(--text5);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Share without an account</div>
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <button type="button" onclick="copyRoutineLink(${rid})" style="flex:1;padding:12px;background:var(--card2);border:0.5px solid var(--border);border-radius:12px;color:var(--text);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:7px"><i class="ti ti-link" style="font-size:14px"></i> Copy link</button>
+        ${navigator.share ? `<button type="button" onclick="nativeShareRoutine(${rid})" style="flex:1;padding:12px;background:var(--card2);border:0.5px solid var(--border);border-radius:12px;color:var(--text);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:7px"><i class="ti ti-share" style="font-size:14px"></i> Share</button>` : ''}
+      </div>
+      <div style="background:#ffffff;border-radius:16px;padding:18px;text-align:center;margin-bottom:8px">
+        <div id="routine-qr-canvas" style="display:inline-block;line-height:0"></div>
+        <div style="font-size:12px;color:#444;font-weight:600;margin-top:10px;font-family:-apple-system,sans-serif">Scan to add routine</div>
+        <div style="font-size:11px;color:#888;margin-top:2px;font-family:-apple-system,sans-serif">No account needed</div>
+      </div>
+      <div style="font-size:11px;color:var(--text5);text-align:center">Anyone who scans or opens the link can import this routine directly</div>
     </div>`;
   document.getElementById('share-routine-overlay').classList.add('show');
+  // Generate QR code after DOM is set
+  requestAnimationFrame(() => _generateRoutineQR(rid));
+}
+
+function _buildRoutineUrl(rid) {
+  const r = userRoutines.find(x => x.id === rid); if (!r) return null;
+  const payload = JSON.stringify({
+    name: r.name, daysPerWeek: r.daysPerWeek, goal: r.goal,
+    owner: 'self', clientName: '', clientLog: [],
+    days: r.days
+  });
+  const b64 = btoa(unescape(encodeURIComponent(payload)));
+  return location.href.split('#')[0] + '#routine=' + b64;
+}
+
+function _generateRoutineQR(rid) {
+  const el = document.getElementById('routine-qr-canvas');
+  if (!el || typeof QRCode === 'undefined') return;
+  el.innerHTML = '';
+  const url = _buildRoutineUrl(rid);
+  if (!url) return;
+  new QRCode(el, {
+    text: url,
+    width: 180,
+    height: 180,
+    colorDark: '#111111',
+    colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M
+  });
 }
 
 function closeShareRoutineSheet() {
@@ -4885,15 +4923,17 @@ function sendRoutineToFriend(rid, targetId, name) {
 }
 
 function copyRoutineLink(rid) {
-  const r = userRoutines.find(x=>x.id===rid); if (!r) return;
-  try {
-    // Strip client-specific data before generating sharable link
-    const payload = JSON.stringify({name:r.name, daysPerWeek:r.daysPerWeek, goal:r.goal, owner:'self', clientName:'', clientLog:[], days:r.days});
-    const b64 = btoa(unescape(encodeURIComponent(payload)));
-    const url = location.href.split('#')[0]+'#routine='+b64;
-    navigator.clipboard.writeText(url).then(()=>showToast('Link copied!')).catch(()=>showToast('Copy failed'));
-  } catch(e) { showToast('Could not create link'); }
-  closeShareRoutineSheet();
+  const url = _buildRoutineUrl(rid); if (!url) return;
+  navigator.clipboard.writeText(url)
+    .then(() => showToast('Link copied!'))
+    .catch(() => showToast('Copy failed'));
+}
+
+function nativeShareRoutine(rid) {
+  const r = userRoutines.find(x => x.id === rid); if (!r) return;
+  const url = _buildRoutineUrl(rid); if (!url) return;
+  navigator.share({ title: r.name, text: 'Check out my "' + r.name + '" routine on Forge Fitness', url })
+    .catch(() => {});
 }
 
 // ── ROUTINE IMPORT FROM URL ──
