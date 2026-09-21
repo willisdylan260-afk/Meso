@@ -5871,6 +5871,29 @@ function cancelTimedCountdown() {
   _timedCountdown = null;
   renderWkt();
 }
+function startTimedBoxPress(e, ei, si) {
+  if (e.type === 'mousedown' && _repPressWasTouch) return;
+  if (e.type === 'touchstart') _repPressWasTouch = true;
+  _repPressLong = false;
+  clearTimeout(_repPressTimer);
+  _repPressTimer = setTimeout(() => {
+    _repPressLong = true;
+    haptic(30);
+    resetTimedSet(ei, si);
+  }, 600);
+}
+function endTimedBoxPress(e, ei, si) {
+  if (e.type === 'mouseup' && _repPressWasTouch) { _repPressWasTouch = false; return; }
+  clearTimeout(_repPressTimer);
+  if (!_repPressLong) startTimedCountdown(ei, si);
+  _repPressLong = false;
+}
+function resetTimedSet(ei, si) {
+  wktData[ei].sets[si].h[CUR] = null;
+  renderWkt();
+  saveActiveWorkout();
+  showToast('Timer reset — tap to set duration');
+}
 function applyTimedFromPick(ei, si) {
   const s = wktData[ei].sets[si];
   s.timed = !s.timed;
@@ -6605,7 +6628,7 @@ function renderWkt() {
               if (isRunning) {
                 pressAttrs = ` onclick="_stopTimedCountdown(${ei},${si},false)"`;
               } else if (r !== null) {
-                pressAttrs = ` onclick="startTimedCountdown(${ei},${si})"`;
+                pressAttrs = ` ontouchstart="startTimedBoxPress(event,${ei},${si})" ontouchend="endTimedBoxPress(event,${ei},${si})" ontouchmove="cancelRepPress()" onmousedown="startTimedBoxPress(event,${ei},${si})" onmouseup="endTimedBoxPress(event,${ei},${si})" onmouseleave="cancelRepPress()" oncontextmenu="return false"`;
               } else {
                 pressAttrs = ` onclick="cycleTimedDuration(${ei},${si})"`;
               }
