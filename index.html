@@ -5897,10 +5897,7 @@ function resetTimedSet(ei, si) {
 function applyTimedFromPick(ei, si) {
   const s = wktData[ei].sets[si];
   s.timed = !s.timed;
-  if (s.timed && s.h[CUR] === null) {
-    // pre-fill with 30s so the user sees something useful immediately
-    s.h[CUR] = null;
-  }
+  timedPickModeEi = null;
   saveActiveWorkout();
   renderWkt();
 }
