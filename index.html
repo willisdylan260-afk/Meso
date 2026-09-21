@@ -6128,43 +6128,180 @@ function parseRepRange(reps) {
   const n = parseInt(reps);
   return isNaN(n) ? [8, 12] : [n, n];
 }
+// ── AUTO-PROGRESSION RULES ────────────────────────────────────────
+function getProgressionRule(exName) {
+  const r = (userProfile.progressionRules || {})[exName] || {};
+  return { sessions: r.sessions || 2, increment: r.increment || null };
+}
+
+function setProgressionRule(exName, key, value) {
+  if (!userProfile.progressionRules) userProfile.progressionRules = {};
+  if (!userProfile.progressionRules[exName]) userProfile.progressionRules[exName] = {};
+  userProfile.progressionRules[exName][key] = value;
+  saveState();
+}
+
+function getConsecutiveTopSessions(exName, equipment) {
+  const src = getActiveRoutineLogSrc();
+  const exDef = findExerciseDef(exName);
+  const [, maxReps] = exDef ? parseRepRange(exDef.reps) : [8, 12];
+  let streak = 0;
+  for (let i = src.length - 1; i >= 0; i--) {
+    const entry = src[i];
+    if (!entry.exercises) continue;
+    const ex = entry.exercises.find(x =>
+      x.name === exName && (!equipment || !x.equipment || x.equipment === equipment)
+    );
+    if (!ex || !ex.sets || !ex.sets.length) continue;
+    const workSets = ex.sets.filter(s => !s.warmup && s.reps > 0 && s.w !== 'BW');
+    if (!workSets.length) continue;
+    if (workSets.every(s => s.reps >= maxReps)) streak++;
+    else break;
+  }
+  return streak;
+}
+
 function getPoRecommendation(ex) {
   if (!ex.last || !ex.last.sets || !ex.last.sets.length) {
     return { type:'first', icon:'ti-sparkles', message:'First time logging this — set your starting weight' };
   }
   const lastSets = ex.last.sets.filter(s => !s.warmup);
   if (!lastSets.length) return { type:'first', icon:'ti-sparkles', message:'Set your working weight for this exercise' };
+
   const exDef = findExerciseDef(ex.name);
   const [minReps, maxReps] = exDef ? parseRepRange(exDef.reps) : [8, 12];
   const isLower = /quad|ham|glute|squat|deadlift|lunge|calf|leg press/i.test(ex.muscle || '');
-  const inc = isLower ? 10 : 5;
-  // RIR-based recommendation (primary signal — most informative)
+  const rule = getProgressionRule(ex.name);
+  const inc = rule.increment || (isLower ? 10 : 5);
+  const threshold = rule.sessions;
+
+  // Consecutive-session streak (cross-session memory)
+  const streak = getConsecutiveTopSessions(ex.name, ex.equipment);
+
+  // RIR-based recommendation (primary single-session signal)
   const setsWithRIR = lastSets.filter(s => s.rir !== null && s.rir !== undefined);
   if (setsWithRIR.length > 0) {
     const avgRIR = setsWithRIR.reduce((sum, s) => sum + s.rir, 0) / setsWithRIR.length;
     const fmtRIR = Number.isInteger(avgRIR) ? avgRIR : avgRIR.toFixed(1);
-    if (avgRIR >= 4) {
-      return { type:'up', icon:'ti-trending-up', message:`Last session felt easy (avg ${fmtRIR} RIR) — add ${inc} lbs and push the same reps` };
+
+    // Streak beats single-session RIR unless the user literally hit failure
+    if (streak >= threshold && avgRIR > 0) {
+      return { type:'up', icon:'ti-trending-up',
+        message:`${streak} session${streak>1?'s':''} in a row at the top — add ${inc} lbs today`, streak };
     }
-    if (avgRIR >= 2) {
-      return { type:'up', icon:'ti-trending-up', message:`${fmtRIR} RIR left last time — ready to bump ${inc} lbs this session` };
-    }
-    if (avgRIR >= 1) {
-      return { type:'hold', icon:'ti-target', message:`Close to failure last session (${fmtRIR} RIR) — same weight, aim for 1 more rep per set` };
-    }
+    if (avgRIR >= 4) return { type:'up',   icon:'ti-trending-up', message:`Last session felt easy (avg ${fmtRIR} RIR) — add ${inc} lbs and push the same reps` };
+    if (avgRIR >= 2) return { type:'up',   icon:'ti-trending-up', message:`${fmtRIR} RIR left last time — ready to bump ${inc} lbs this session` };
+    if (avgRIR >= 1) return { type:'hold', icon:'ti-target',      message:`Close to failure last session (${fmtRIR} RIR) — same weight, aim for 1 more rep per set` };
     return { type:'hold', icon:'ti-shield', message:'You hit failure last session — hold the weight, nail the reps, then progress next week' };
   }
-  // Fallback: rep-range comparison
+
+  // Streak check (no RIR data path)
+  if (streak >= threshold) {
+    return { type:'up', icon:'ti-trending-up',
+      message:`${streak} session${streak>1?'s':''} in a row hitting ${maxReps} reps — add ${inc} lbs today`, streak };
+  }
+
+  // Rep-range fallback
   const allHitMax    = lastSets.every(s => s.reps >= maxReps);
   const allCompleted = lastSets.every(s => s.reps >= minReps);
   if (allHitMax) {
-    return { type:'up',   icon:'ti-trending-up', message:`Hit the top of your rep range last session — add ${inc} lbs today` };
-  } else if (allCompleted) {
-    return { type:'hold', icon:'ti-target',       message:'Good session — same weight, push for more reps' };
-  } else {
-    return { type:'hold', icon:'ti-shield',       message:'Complete all reps before adding weight — focus on form and full range' };
+    const remaining = threshold - streak;
+    const progress  = streak > 0 ? ` (${streak}/${threshold})` : '';
+    return { type: remaining > 0 ? 'hold' : 'up', icon:'ti-target',
+      message: remaining > 0
+        ? `Hit top of rep range${progress} — ${remaining} more session${remaining>1?'s':''} to add weight`
+        : `Hit the top of your rep range — add ${inc} lbs today` };
   }
+  if (allCompleted) return { type:'hold', icon:'ti-target', message:'Good session — same weight, push for more reps' };
+  return { type:'hold', icon:'ti-shield', message:'Complete all reps before adding weight — focus on form and full range' };
 }
+// ── PROGRESSION RULE SHEET ───────────────────────────────────────
+let _progRuleEi = null;
+
+function openProgRuleSheet(ei) {
+  _progRuleEi = ei;
+  openMoreMenuEi = null;
+  const ex = wktData[ei];
+  const rule = getProgressionRule(ex.name);
+  const isLower = /quad|ham|glute|squat|deadlift|lunge|calf|leg press/i.test(ex.muscle || '');
+  const defaultInc = isLower ? 10 : 5;
+  const unit = userProfile.weightUnit || 'lbs';
+  const streak = getConsecutiveTopSessions(ex.name, ex.equipment);
+  const exDef = findExerciseDef(ex.name);
+  const [, maxReps] = exDef ? parseRepRange(exDef.reps) : [8, 12];
+
+  document.getElementById('prog-rule-title').textContent = ex.name;
+
+  const sessionOpts = [1, 2, 3].map(n =>
+    `<button type="button" onclick="updateProgRuleSession(${n})" id="prs-${n}"
+      style="flex:1;padding:9px;border-radius:10px;border:0.5px solid ${n===rule.sessions?'var(--accent-border)':'var(--border)'};background:${n===rule.sessions?'var(--accent-dim)':'var(--card)'};color:${n===rule.sessions?'var(--accent)':'var(--text4)'};font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .12s">
+      ${n===1?'Every':'After'} ${n===1?'session':n+' sessions'}
+    </button>`
+  ).join('');
+
+  document.getElementById('prog-rule-body').innerHTML = `
+    <div style="background:var(--card2);border-radius:13px;padding:13px 14px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
+      <i class="ti ti-flame" style="font-size:18px;color:var(--accent)"></i>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:var(--text)">${streak} session${streak!==1?'s':''} in a row at ${maxReps} reps</div>
+        <div style="font-size:11px;color:var(--text5);margin-top:2px">${streak>=rule.sessions?'Progression triggered this session':''+Math.max(0,rule.sessions-streak)+' more to trigger progression'}</div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:18px">
+      <div style="font-size:11px;color:var(--text5);text-transform:uppercase;letter-spacing:.07em;margin-bottom:9px;font-weight:600">Add weight when you hit the top of your rep range</div>
+      <div style="display:flex;gap:7px" id="prog-session-btns">${sessionOpts}</div>
+    </div>
+
+    <div style="margin-bottom:18px">
+      <div style="font-size:11px;color:var(--text5);text-transform:uppercase;letter-spacing:.07em;margin-bottom:9px;font-weight:600">Weight increment</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <input id="prog-inc-input" type="number" inputmode="decimal" min="1" step="2.5"
+          value="${rule.increment || defaultInc}"
+          oninput="updateProgRuleInc()"
+          style="flex:1;background:var(--card2);border:0.5px solid var(--border);border-radius:11px;color:var(--text);font-size:17px;font-weight:700;padding:11px 13px;font-family:inherit;outline:none;font-variant-numeric:tabular-nums">
+        <span style="font-size:13px;color:var(--text4);font-weight:600">${unit}</span>
+      </div>
+      <div style="font-size:11px;color:var(--text5);margin-top:6px">Default: ${defaultInc} ${unit} (${isLower?'lower body':'upper body'})</div>
+    </div>
+
+    <div style="padding:12px 14px;background:var(--card2);border-radius:12px;border:0.5px solid var(--border2)">
+      <div style="font-size:12px;color:var(--text4);line-height:1.6">
+        When you hit the top of your rep range <strong style="color:var(--text3)">${rule.sessions} session${rule.sessions!==1?'s':''} in a row</strong>, the next session's banner will tell you to add <strong style="color:var(--text3)">${rule.increment||defaultInc} ${unit}</strong>.
+      </div>
+    </div>`;
+
+  document.getElementById('prog-rule-overlay').classList.add('show');
+  renderWkt();
+}
+
+function updateProgRuleSession(n) {
+  if (_progRuleEi === null) return;
+  const ex = wktData[_progRuleEi];
+  setProgressionRule(ex.name, 'sessions', n);
+  // Update button styles in place
+  [1,2,3].forEach(i => {
+    const btn = document.getElementById('prs-'+i);
+    if (!btn) return;
+    const active = i === n;
+    btn.style.borderColor = active ? 'var(--accent-border)' : 'var(--border)';
+    btn.style.background  = active ? 'var(--accent-dim)'   : 'var(--card)';
+    btn.style.color       = active ? 'var(--accent)'       : 'var(--text4)';
+  });
+  // Refresh the summary line
+  openProgRuleSheet(_progRuleEi);
+}
+
+function updateProgRuleInc() {
+  if (_progRuleEi === null) return;
+  const val = parseFloat(document.getElementById('prog-inc-input')?.value);
+  if (val > 0) setProgressionRule(wktData[_progRuleEi].name, 'increment', val);
+}
+
+function closeProgRuleSheet() {
+  document.getElementById('prog-rule-overlay').classList.remove('show');
+}
+
 function toggleLast(ei) {
   wktData[ei].lastOpen = !wktData[ei].lastOpen;
   renderWkt();
@@ -6334,6 +6471,7 @@ function renderWkt() {
           <button type="button" class="more-item" onclick="enterBWPickMode(${ei})"><span class="more-icon" style="font-size:10px;font-weight:700;color:var(--accent)">BW</span> Bodyweight set</button>
           <button type="button" class="more-item" onclick="openExTools(${ei},'warmup')"><span class="more-icon wup-icon">W</span> Warmup Calculator</button>
           <button type="button" class="more-item" onclick="openExTools(${ei},'onerm')"><span class="more-icon" style="font-size:10px;font-weight:700;color:var(--text3)">1RM</span> Estimate 1RM</button>
+          <button type="button" class="more-item" onclick="openProgRuleSheet(${ei})"><i class="ti ti-settings-automation" style="font-size:14px;color:var(--text3);width:20px;text-align:center"></i> Progression rules</button>
           <button type="button" class="more-item" onclick="enterSupersetMode(${ei})"><i class="ti ti-arrows-exchange" style="font-size:14px;color:var(--accent-dark);width:20px;text-align:center"></i> Superset with another exercise</button>
           <button type="button" class="more-item" onclick="removeExercise(${ei})" style="color:var(--red)"><i class="ti ti-trash" style="font-size:14px;width:20px;text-align:center"></i> Remove exercise</button>
         </div>`;
@@ -9461,6 +9599,21 @@ function applyUpdate() {
       <button type="button" onclick="cancelDeleteRoutine()" style="flex:1;background:var(--card2);border:0.5px solid var(--border);border-radius:14px;color:var(--text3);font-size:15px;font-weight:600;padding:15px;cursor:pointer;font-family:inherit">Cancel</button>
       <button type="button" onclick="executePendingDelete()" style="flex:1;background:#2a0e0e;border:0.5px solid #7a2020;border-radius:14px;color:var(--red);font-size:15px;font-weight:700;padding:15px;cursor:pointer;font-family:inherit">Delete</button>
     </div>
+  </div>
+</div>
+
+<!-- Progression Rule Sheet -->
+<div class="overlay" id="prog-rule-overlay" onclick="if(event.target===this)closeProgRuleSheet()">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-hd">
+      <div>
+        <div class="sheet-title" id="prog-rule-title"></div>
+        <div class="sheet-sub">Auto-progression rules</div>
+      </div>
+      <button type="button" class="sheet-close" onclick="closeProgRuleSheet()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="sheet-body" id="prog-rule-body"></div>
   </div>
 </div>
 
