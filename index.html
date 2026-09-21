@@ -5402,7 +5402,7 @@ let dropPickModeEi = null;
 let bwPickModeEi = null;
 let supersetPickEi = null;
 let _repPressTimer = null, _repPressLong = false, _repPressWasTouch = false;
-let _1rmSheetEi = null;
+// _1rmSheetEi replaced by _exToolsEi
 
 // ── Haptic feedback ──────────────────────────────
 function haptic(pattern = 20) {
@@ -5795,6 +5795,118 @@ function incrementRIR(ei, si, isDrop) {
   renderWkt();
 }
 
+// ── EXERCISE TOOLS SHEET (Warmup Calculator + %1RM) ──────────────
+let _exToolsEi  = null;
+let _exToolsTab = 'warmup';
+let _warmupSetsCache = [];
+
+function openExTools(ei, tab) {
+  _exToolsEi  = ei;
+  openMoreMenuEi = null;
+  const ex = wktData[ei];
+  document.getElementById('onerm-title').textContent = ex.name;
+  switchExToolsTab(tab || 'warmup');
+  document.getElementById('onerm-overlay').classList.add('show');
+  renderWkt();
+}
+function closeExTools() {
+  document.getElementById('onerm-overlay').classList.remove('show');
+}
+function switchExToolsTab(tab) {
+  _exToolsTab = tab;
+  ['warmup','onerm'].forEach(t => {
+    const btn = document.getElementById('tab-'+t);
+    if (!btn) return;
+    const active = t === tab;
+    btn.style.background = active ? 'var(--card)' : 'transparent';
+    btn.style.color      = active ? 'var(--text)'  : 'var(--text4)';
+    btn.style.boxShadow  = active ? '0 1px 4px rgba(0,0,0,.18)' : 'none';
+  });
+  if (tab === 'warmup') _renderWarmupTab();
+  else _render1RMTab();
+}
+
+// ── Warmup tab ────────────────────────────────────────────────────
+function _roundWeight(w, unit) {
+  const r = unit === 'kg' ? 2.5 : 5;
+  return Math.round(w / r) * r;
+}
+function _renderWarmupTab() {
+  if (_exToolsEi === null) return;
+  const ex   = wktData[_exToolsEi];
+  const unit = userProfile.weightUnit || 'lbs';
+  const barW = unit === 'kg' ? 20 : 45;
+  // Pre-fill with first working set weight, or last session
+  const workSet  = ex.sets.find(s => !s.warmup && s.w && s.w !== 'BW' && parseFloat(s.w) > 0);
+  const lastSet  = ex.last?.sets?.find(s => !s.warmup && s.w && s.w !== 'BW');
+  const prefill  = workSet ? parseFloat(workSet.w) : (lastSet ? parseFloat(lastSet.w) : '');
+  document.getElementById('onerm-body').innerHTML = `
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;color:var(--text5);text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px;font-weight:600">Working weight</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="warmup-work-input" type="number" inputmode="decimal" placeholder="e.g. 185"
+          value="${prefill}"
+          oninput="_calcWarmupSets()"
+          style="flex:1;background:var(--card2);border:0.5px solid var(--border);border-radius:11px;color:var(--text);font-size:17px;font-weight:700;padding:11px 13px;font-family:inherit;outline:none;font-variant-numeric:tabular-nums">
+        <div style="font-size:13px;color:var(--text4);font-weight:600;flex-shrink:0">${unit}</div>
+      </div>
+    </div>
+    <div id="warmup-sets-body"></div>`;
+  _calcWarmupSets();
+}
+function _calcWarmupSets() {
+  const unit   = userProfile.weightUnit || 'lbs';
+  const barW   = unit === 'kg' ? 20 : 45;
+  const inp    = document.getElementById('warmup-work-input');
+  const workW  = inp ? parseFloat(inp.value) : 0;
+  const body   = document.getElementById('warmup-sets-body');
+  if (!body) return;
+  if (!workW || workW <= 0) {
+    body.innerHTML = `<div style="color:var(--text5);font-size:13px;text-align:center;padding:18px 0">Enter a working weight above.</div>`;
+    return;
+  }
+  // Build progressive ramp: bar → 40% → 60% → 75% → 90%
+  const steps = [];
+  if (workW > barW * 1.8) steps.push({ label: 'Empty bar', w: barW, reps: 10 });
+  steps.push({ pct: 40, reps: 10 });
+  steps.push({ pct: 60, reps: 6  });
+  steps.push({ pct: 75, reps: 3  });
+  steps.push({ pct: 90, reps: 2  });
+  const sets = steps.map(s => {
+    const raw = s.pct ? _roundWeight(workW * s.pct / 100, unit) : s.w;
+    return { label: s.label || (s.pct + '% of working weight'), w: Math.max(barW, raw), reps: s.reps };
+  }).filter((s, i, arr) => i === 0 || s.w < workW); // drop any that equal working weight
+  _warmupSetsCache = sets;
+  const rows = sets.map((s, i) => `
+    <div style="display:flex;align-items:center;gap:12px;padding:11px 13px;border-radius:11px;margin-bottom:6px;background:var(--card2);border:0.5px solid var(--border)">
+      <div style="width:26px;height:26px;border-radius:50%;background:var(--card);border:0.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--text5);flex-shrink:0;letter-spacing:.02em">W${i+1}</div>
+      <div style="flex:1">
+        <div style="font-size:15px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums">${s.w} <span style="font-size:11px;font-weight:500;color:var(--text5)">${unit}</span></div>
+        <div style="font-size:11px;color:var(--text5);margin-top:1px">${s.label}</div>
+      </div>
+      <div style="font-size:13px;font-weight:600;color:var(--text4);font-variant-numeric:tabular-nums">${s.reps} reps</div>
+    </div>`).join('');
+  body.innerHTML = `
+    <div style="font-size:10px;color:var(--text5);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;font-weight:600">Warmup sets</div>
+    ${rows}
+    <button type="button" onclick="_addAllWarmupSets()"
+      style="width:100%;margin-top:10px;padding:13px;border-radius:13px;background:var(--accent-dim);border:0.5px solid var(--accent-border);color:var(--accent);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">
+      <i class="ti ti-plus" style="font-size:13px"></i> Add ${sets.length} warmup sets to workout
+    </button>`;
+}
+function _addAllWarmupSets() {
+  if (_exToolsEi === null || !_warmupSetsCache.length) return;
+  const ex = wktData[_exToolsEi];
+  const toAdd = _warmupSetsCache.map(s => ({
+    w: s.w, h: [null,null,null,null], rirH: [null,null,null,null], warmup: true
+  }));
+  // Replace existing warmup sets, keep working sets
+  ex.sets = [...toAdd, ...ex.sets.filter(s => !s.warmup)];
+  closeExTools();
+  renderWkt(); saveActiveWorkout();
+  showToast(_warmupSetsCache.length + ' warmup sets added');
+}
+
 // ── %1RM ─────────────────────────────────────────────────────────
 function estimate1RM(weight, reps) {
   if (!weight || weight === 'BW' || !reps || reps < 1 || reps > 15) return null;
@@ -5816,12 +5928,10 @@ function getBest1RM(exName) {
   });
   return bestEst ? { est: bestEst, fromW: bestWeight, fromReps: bestReps } : null;
 }
-function open1RMSheet(ei) {
-  _1rmSheetEi = ei;
-  openMoreMenuEi = null;
-  const ex = wktData[ei];
+function _render1RMTab() {
+  if (_exToolsEi === null) return;
+  const ex = wktData[_exToolsEi];
   const result = getBest1RM(ex.name);
-  document.getElementById('onerm-title').textContent = ex.name;
   const unit = (userProfile.weightUnit || 'lbs');
   const exDef = findExerciseDef(ex.name);
   const [minReps, maxReps] = exDef ? parseRepRange(exDef.reps) : [8, 12];
@@ -5836,8 +5946,6 @@ function open1RMSheet(ei) {
   if (!result) {
     document.getElementById('onerm-body').innerHTML = explainer +
       `<div style="color:var(--text5);font-size:13px;text-align:center;padding:24px 0">No logged sets yet — complete at least one set to see your estimated 1RM.</div>`;
-    document.getElementById('onerm-overlay').classList.add('show');
-    renderWkt();
     return;
   }
   const { est, fromW, fromReps } = result;
@@ -5875,12 +5983,10 @@ function open1RMSheet(ei) {
     </div>
     <div style="font-size:10px;color:var(--text5);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;font-weight:600">Training zones</div>
     ${zoneRows}`;
-  document.getElementById('onerm-overlay').classList.add('show');
-  renderWkt();
 }
-function close1RMSheet() {
-  document.getElementById('onerm-overlay').classList.remove('show');
-}
+// Keep old names as aliases so nothing breaks
+function open1RMSheet(ei)  { openExTools(ei, 'onerm'); }
+function close1RMSheet()   { closeExTools(); }
 
 // ── SUPERSETS ──
 function enterSupersetMode(ei) {
@@ -6186,7 +6292,8 @@ function renderWkt() {
           <button type="button" class="more-item" onclick="enterDropPickMode(${ei})"><span class="more-icon drop-icon">↓</span> Add drop set</button>
           <button type="button" class="more-item" onclick="addWarmupSet(${ei})"><span class="more-icon wup-icon">W</span> Add warm-up set</button>
           <button type="button" class="more-item" onclick="enterBWPickMode(${ei})"><span class="more-icon" style="font-size:10px;font-weight:700;color:var(--accent)">BW</span> Bodyweight set</button>
-          <button type="button" class="more-item" onclick="open1RMSheet(${ei})"><span class="more-icon" style="font-size:10px;font-weight:700;color:var(--text3)">1RM</span> Estimate 1RM</button>
+          <button type="button" class="more-item" onclick="openExTools(${ei},'warmup')"><span class="more-icon wup-icon">W</span> Warmup Calculator</button>
+          <button type="button" class="more-item" onclick="openExTools(${ei},'onerm')"><span class="more-icon" style="font-size:10px;font-weight:700;color:var(--text3)">1RM</span> Estimate 1RM</button>
           <button type="button" class="more-item" onclick="enterSupersetMode(${ei})"><i class="ti ti-arrows-exchange" style="font-size:14px;color:var(--accent-dark);width:20px;text-align:center"></i> Superset with another exercise</button>
           <button type="button" class="more-item" onclick="removeExercise(${ei})" style="color:var(--red)"><i class="ti ti-trash" style="font-size:14px;width:20px;text-align:center"></i> Remove exercise</button>
         </div>`;
@@ -9282,15 +9389,22 @@ function applyUpdate() {
   </div>
 </div>
 
-<!-- 1RM Sheet -->
-<div class="overlay" id="onerm-overlay" onclick="if(event.target===this)close1RMSheet()">
+<!-- Exercise Tools Sheet (Warmup Calculator + %1RM) -->
+<div class="overlay" id="onerm-overlay" onclick="if(event.target===this)closeExTools()">
   <div class="sheet">
     <div class="sheet-handle"></div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
       <div id="onerm-title" style="font-size:16px;font-weight:700;color:var(--text)"></div>
-      <button type="button" class="sheet-close" onclick="close1RMSheet()"><i class="ti ti-x"></i></button>
+      <button type="button" class="sheet-close" onclick="closeExTools()"><i class="ti ti-x"></i></button>
     </div>
-    <div id="onerm-body" style="overflow-y:auto;max-height:70vh;padding-bottom:8px"></div>
+    <!-- Tab bar -->
+    <div style="display:flex;background:var(--card2);border-radius:10px;padding:3px;margin-bottom:16px;gap:3px" id="ex-tools-tabs">
+      <button type="button" id="tab-warmup" onclick="switchExToolsTab('warmup')"
+        style="flex:1;padding:7px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s">Warmup</button>
+      <button type="button" id="tab-onerm" onclick="switchExToolsTab('onerm')"
+        style="flex:1;padding:7px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s">%1RM</button>
+    </div>
+    <div id="onerm-body" style="overflow-y:auto;max-height:65vh;padding-bottom:8px"></div>
   </div>
 </div>
 </body>
