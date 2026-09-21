@@ -5885,7 +5885,7 @@ function startTimedBoxPress(e, ei, si) {
 function endTimedBoxPress(e, ei, si) {
   if (e.type === 'mouseup' && _repPressWasTouch) { _repPressWasTouch = false; return; }
   clearTimeout(_repPressTimer);
-  if (!_repPressLong) startTimedCountdown(ei, si);
+  if (!_repPressLong) cycleTimedDuration(ei, si);
   _repPressLong = false;
 }
 function resetTimedSet(ei, si) {
@@ -6618,22 +6618,28 @@ function renderWkt() {
             const rirSub = rirVal != null ? (rirVal === 0 ? '@ fail' : `@ ${rirVal >= 5 ? '5+' : rirVal}`) : null;
             sub = pr === 'rep' ? 'Rep PR' : pr ? 'PR' : r !== null ? (rirSub || 'done') : isCur ? 'tap' : '—';
           }
-          let pressAttrs = '';
-          if (isCur && !canPick && !canBWPick && !canTimedPick) {
-            if (isTimedSet) {
-              const isRunning = _timedCountdown && _timedCountdown.ei === ei && _timedCountdown.si === si;
-              if (isRunning) {
-                pressAttrs = ` onclick="_stopTimedCountdown(${ei},${si},false)"`;
-              } else if (r !== null) {
-                pressAttrs = ` ontouchstart="startTimedBoxPress(event,${ei},${si})" ontouchend="endTimedBoxPress(event,${ei},${si})" ontouchmove="cancelRepPress()" onmousedown="startTimedBoxPress(event,${ei},${si})" onmouseup="endTimedBoxPress(event,${ei},${si})" onmouseleave="cancelRepPress()" oncontextmenu="return false"`;
-              } else {
-                pressAttrs = ` onclick="cycleTimedDuration(${ei},${si})"`;
-              }
+          if (isTimedSet && isCur && !canPick && !canBWPick && !canTimedPick) {
+            const isRunning = _timedCountdown && _timedCountdown.ei === ei && _timedCountdown.si === si;
+            // rep-val: tap = cycle duration; long-press (when value set) = reset
+            let valAttrs, subAttrs;
+            if (isRunning) {
+              valAttrs = '';
+              subAttrs = ` onclick="event.stopPropagation();_stopTimedCountdown(${ei},${si},false)" style="cursor:pointer;color:var(--accent);font-weight:700"`;
+            } else if (r !== null) {
+              valAttrs = ` ontouchstart="startTimedBoxPress(event,${ei},${si})" ontouchend="endTimedBoxPress(event,${ei},${si})" ontouchmove="cancelRepPress()" onmousedown="startTimedBoxPress(event,${ei},${si})" onmouseup="endTimedBoxPress(event,${ei},${si})" onmouseleave="cancelRepPress()" oncontextmenu="return false" style="cursor:pointer"`;
+              subAttrs = ` onclick="event.stopPropagation();startTimedCountdown(${ei},${si})" style="cursor:pointer;color:var(--accent);font-weight:700"`;
             } else {
+              valAttrs = ` onclick="cycleTimedDuration(${ei},${si})" style="cursor:pointer"`;
+              subAttrs = '';
+            }
+            html += `<div class="${cls}"><div class="rep-val"${valAttrs}>${disp}</div><div class="rep-sub"${subAttrs}>${sub}</div></div>`;
+          } else {
+            let pressAttrs = '';
+            if (isCur && !canPick && !canBWPick && !canTimedPick) {
               pressAttrs = ` ontouchstart="startRepPress(event,${ei},${si},false)" ontouchend="endRepPress(event,${ei},${si},false)" ontouchmove="cancelRepPress()" onmousedown="startRepPress(event,${ei},${si},false)" onmouseup="endRepPress(event,${ei},${si},false)" onmouseleave="cancelRepPress()" oncontextmenu="return false"`;
             }
+            html += `<div class="${cls}"${pressAttrs}><div class="rep-val">${disp}</div><div class="rep-sub">${sub}</div></div>`;
           }
-          html += `<div class="${cls}"${pressAttrs}><div class="rep-val">${disp}</div><div class="rep-sub">${sub}</div></div>`;
         });
         html += `</div>`;
         html += `<button type="button" class="rm-set-btn" onclick="event.stopPropagation();removeSet(${ei},${si})"><i class="ti ti-minus" style="font-size:9px"></i></button>`;
