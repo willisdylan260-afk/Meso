@@ -7392,10 +7392,13 @@ function renderDayList(r) {
               </button>
               <button type="button" class="rd-icon-btn del" onclick="event.stopPropagation();rdDeleteEx(${i},${ei})" aria-label="Remove exercise"><i class="ti ti-x" style="font-size:12px"></i></button>
             </div>`).join('')}
-          <div style="padding:8px 0 2px">
-            <button type="button" class="rd-swap-btn" style="width:100%;justify-content:center;padding:9px" onclick="event.stopPropagation();openAddExSheet(${i})">
+          <div style="padding:8px 0 2px;display:flex;gap:7px">
+            <button type="button" class="rd-swap-btn" style="flex:1;justify-content:center;padding:9px" onclick="event.stopPropagation();openAddExSheet(${i})">
               <i class="ti ti-plus" style="font-size:11px"></i> Add Exercise
             </button>
+            ${_rdClipboard ? `<button type="button" class="rd-swap-btn" style="justify-content:center;padding:9px 13px;border-color:var(--accent-border);color:var(--accent);background:var(--accent-dim)" onclick="event.stopPropagation();rdPasteDay(${i})">
+              <i class="ti ti-clipboard" style="font-size:11px"></i> Paste
+            </button>` : ''}
           </div>
         </div>
       </div>`;
@@ -7716,22 +7719,35 @@ function saveExSets() {
   showToast('Updated');
 }
 
-// ── COPY WORKOUT DAY ──
+// ── COPY / PASTE WORKOUT DAY ──
+let _rdClipboard = null; // { label, exercises[] } — cross-routine clipboard
+
 function rdCopyDay(dayIdx) {
   const r = userRoutines.find(r => r.id === viewingRoutineId);
   if (!r) return;
   const src = r.days[dayIdx];
-  const copy = JSON.parse(JSON.stringify(src)); // deep clone
-  copy.label = src.label + ' Copy';
-  copy.done  = false;
-  copy.doneTimestamp = null;
-  r.days.splice(dayIdx + 1, 0, copy);
-  r.daysPerWeek = r.days.length;
+  _rdClipboard = {
+    label: src.label,
+    exercises: JSON.parse(JSON.stringify(src.exercises || []))
+  };
+  // Re-render all open day cards so the Paste button appears
+  renderDayList(r);
+  showToast('"' + src.label + '" copied — tap Paste on any day');
+}
+
+function rdPasteDay(dayIdx) {
+  if (!_rdClipboard) return;
+  const r = userRoutines.find(r => r.id === viewingRoutineId);
+  if (!r) return;
+  const dst = r.days[dayIdx];
+  // Append copied exercises (avoid exact duplicates by name)
+  const existingNames = new Set((dst.exercises || []).map(e => e.name));
+  const toAdd = _rdClipboard.exercises.filter(e => !existingNames.has(e.name));
+  dst.exercises = [...(dst.exercises || []), ...toAdd];
+  _rdClipboard = null; // single-use
   saveState();
   renderDayList(r);
-  renderRoutineList();
-  document.getElementById('rd-meta').textContent = r.daysPerWeek + ' days/week · ' + r.goal;
-  showToast('"' + src.label + '" copied');
+  showToast('Pasted ' + toAdd.length + ' exercise' + (toAdd.length !== 1 ? 's' : '') + ' into "' + (dst.label || 'day') + '"');
 }
 
 // ── DELETE WORKOUT DAY ──
