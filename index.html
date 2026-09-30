@@ -1402,21 +1402,6 @@ a, button, [role="button"], input, label, select, textarea {
     </div>
   </div>
 
-  <!-- Share routine sheet -->
-  <div class="overlay" id="share-routine-overlay" onclick="if(event.target===this)closeShareRoutineSheet()">
-    <div class="sheet" id="share-routine-sheet" style="max-height:75%">
-      <div class="sheet-handle"></div>
-      <div class="sheet-hd">
-        <div>
-          <div class="sheet-title">Share Routine</div>
-          <div class="sheet-sub"></div>
-        </div>
-        <button type="button" class="sheet-close" onclick="closeShareRoutineSheet()"><i class="ti ti-x"></i></button>
-      </div>
-      <div class="sheet-body" id="share-routine-body"></div>
-    </div>
-  </div>
-
   <!-- Settings sheet -->
   <div class="overlay" id="settings-overlay" onclick="if(event.target===this)closeSettings()">
     <div class="sheet" style="max-height:80%">
@@ -2169,6 +2154,7 @@ a, button, [role="button"], input, label, select, textarea {
   </div>
   <div class="sum-footer">
     <button type="button" class="sum-share hidden" id="sum-share-btn" onclick="openPRShareSheet()"><i class="ti ti-share"></i> Share</button>
+    <button type="button" class="sum-share" id="sum-post-btn" onclick="postWorkoutToFeed()" style="display:flex;align-items:center;gap:5px"><i class="ti ti-users"></i> Friends</button>
     <button type="button" class="sum-done" onclick="goScreen('screen-app');switchTab('log')">Done →</button>
   </div>
   <div class="pr-share-overlay" id="pr-share-overlay" onclick="if(event.target===this)closePRShareSheet()">
@@ -2192,6 +2178,21 @@ a, button, [role="button"], input, label, select, textarea {
         <button type="button" class="pr-share-btn accent" onclick="postPRToFriendsFeed()"><i class="ti ti-users"></i> Post to Friends</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- Share routine sheet — lives outside all screens so it works from screen-routine too -->
+<div class="overlay" id="share-routine-overlay" onclick="if(event.target===this)closeShareRoutineSheet()">
+  <div class="sheet" id="share-routine-sheet" style="max-height:75%">
+    <div class="sheet-handle"></div>
+    <div class="sheet-hd">
+      <div>
+        <div class="sheet-title">Share Routine</div>
+        <div class="sheet-sub"></div>
+      </div>
+      <button type="button" class="sheet-close" onclick="closeShareRoutineSheet()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="sheet-body" id="share-routine-body"></div>
   </div>
 </div>
 
@@ -4424,6 +4425,29 @@ function renderFriendsTab() {
   renderFtLeaderboard();
   renderFtDiscover();
   updateFriendsBadge();
+  _refreshFriendsFromFirebase();
+}
+
+async function _refreshFriendsFromFirebase() {
+  if (!ffDB || !friendsList.length) return;
+  let changed = false;
+  for (const id of friendsList) {
+    if (!isRealUser(id)) continue;
+    try {
+      const snap = await ffDB.ref('forge_app_data/' + emailToFBKey(id)).once('value');
+      const d = snap.val();
+      if (!d) continue;
+      if (d.log && d.log.length) {
+        localStorage.setItem('ff_' + id + '_log', JSON.stringify(d.log));
+        changed = true;
+      }
+      if (d.profile) {
+        localStorage.setItem('ff_' + id + '_profile', JSON.stringify(d.profile));
+        changed = true;
+      }
+    } catch(e) {}
+  }
+  if (changed) { renderFtFeed(); renderFtLeaderboard(); renderFtMyProfile(); }
 }
 
 function renderFtMyProfile() {
@@ -6742,6 +6766,12 @@ function buildSummaryScreen() {
 
   const bannerEl = document.getElementById('sum-pr-banner');
   const shareBtn = document.getElementById('sum-share-btn');
+  const postBtn = document.getElementById('sum-post-btn');
+  if (postBtn) {
+    postBtn.innerHTML = '<i class="ti ti-users"></i> Friends';
+    postBtn.disabled = false; postBtn.style.opacity = '';
+    postBtn.style.display = friendsList.length ? 'flex' : 'none';
+  }
   if (prs > 0) {
     const first = sessionPRs[0];
     const sub = prs === 1
@@ -7045,6 +7075,26 @@ function postPRToFriendsFeed() {
   saveState();
   showToast('Posted to friends!');
   closePRShareSheet();
+}
+
+function postWorkoutToFeed() {
+  const latest = logEntries[logEntries.length - 1];
+  if (!latest) { showToast('No workout to post'); return; }
+  const actId = 'wkt-' + (latest.id || latest.timestamp || Date.now());
+  if (userActivities.find(a => a.id === actId)) {
+    showToast('Already posted!'); return;
+  }
+  userActivities.unshift({
+    id: actId,
+    type: 'workout',
+    text: 'Completed ' + (latest.dayLabel || 'a workout'),
+    detail: Math.round(latest.vol || 0).toLocaleString() + ' lbs · ' + latest.done + '/' + latest.total + ' sets',
+    ts: latest.timestamp || Date.now()
+  });
+  saveState();
+  showToast('Posted to friends feed!');
+  const btn = document.getElementById('sum-post-btn');
+  if (btn) { btn.innerHTML = '<i class="ti ti-check"></i> Posted'; btn.disabled = true; btn.style.opacity = '.5'; }
 }
 
 // ─────────────────────────────────────────
