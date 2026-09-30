@@ -1314,6 +1314,7 @@ a, button, [role="button"], input, label, select, textarea {
       </div>
       <div id="ft-my-profile"></div>
       <div id="ft-requests"></div>
+      <div id="ft-sent"></div>
       <div id="ft-shared"></div>
       <div id="ft-feed"></div>
       <div id="ft-leaderboard-wrap"></div>
@@ -4420,6 +4421,7 @@ function renderFriendsTab() {
   initFriendsData();
   renderFtMyProfile();
   renderFtRequests();
+  renderFtSent();
   renderFtShared();
   renderFtFeed();
   renderFtLeaderboard();
@@ -4427,6 +4429,37 @@ function renderFriendsTab() {
   updateFriendsBadge();
   _refreshFriendsFromFirebase();
   _syncFriendRequestsFromFirebase();
+}
+
+function renderFtSent() {
+  const el = document.getElementById('ft-sent'); if (!el) return;
+  const pending = friendsSent.filter(id => isRealUser(id));
+  if (!pending.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <div class="ft-sec"><div class="ft-sec-lbl">Pending requests</div></div>
+    <div style="margin:0 14px 8px;background:var(--card);border:0.5px solid var(--border);border-radius:14px;overflow:hidden">
+      ${pending.map(id => {
+        const p = getRealUserProfile(id);
+        const name = p.name || id.split('@')[0];
+        const initials = name.slice(0,2).toUpperCase();
+        return `
+        <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:0.5px solid var(--border2)">
+          <div class="avatar" style="width:36px;height:36px;font-size:12px;flex-shrink:0">${initials}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:600;color:var(--text)">${name}</div>
+            <div style="font-size:12px;color:var(--text5)">Awaiting response</div>
+          </div>
+          <button onclick="cancelFriendRequest('${id}')" style="background:var(--card2);border:0.5px solid var(--border);border-radius:9px;color:var(--text4);font-size:12px;padding:6px 12px;cursor:pointer;font-family:inherit">Cancel</button>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function cancelFriendRequest(id) {
+  friendsSent = friendsSent.filter(e => e !== id);
+  if (ffDB) ffDB.ref('forge_friend_reqs/' + emailToFBKey(id) + '/' + emailToFBKey(activeAccountEmail)).remove().catch(()=>{});
+  saveState(); renderFriendsTab();
+  showToast('Request cancelled');
 }
 
 async function _refreshFriendsFromFirebase() {
@@ -4865,7 +4898,7 @@ async function renderFtDiscover() {
         <div class="friend-name" style="font-size:13px">${name}</div>
         <div class="friend-meta">@${username}</div>
       </div>
-      <button class="ft-add-btn" onclick="sendFriendRequest(this.dataset.id)" data-id="${u.email}">+ Add</button>
+      <button class="ft-add-btn" onclick="this.textContent='Requested ✓';this.disabled=true;this.classList.add('sent');sendFriendRequest(this.dataset.id)" data-id="${u.email}">+ Add</button>
     </div>`;
   }).join('');
 
