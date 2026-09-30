@@ -4419,6 +4419,7 @@ async function importContacts() {
 
 function renderFriendsTab() {
   initFriendsData();
+  _mergeFriendsFromStorage(); // pick up same-device requests written since last loadState
   renderFtMyProfile();
   renderFtRequests();
   renderFtSent();
@@ -4429,6 +4430,20 @@ function renderFriendsTab() {
   updateFriendsBadge();
   _refreshFriendsFromFirebase();
   _syncFriendRequestsFromFirebase();
+}
+
+function _mergeFriendsFromStorage() {
+  try {
+    const raw = localStorage.getItem(getStorageKey('friends'));
+    if (!raw) return;
+    const fd = JSON.parse(raw);
+    // Merge received — add any entries not already in memory
+    (fd.received || []).forEach(e => { if (!friendsReceived.includes(e) && !friendsList.includes(e)) friendsReceived.push(e); });
+    // Merge sent
+    (fd.sent || []).forEach(e => { if (!friendsSent.includes(e)) friendsSent.push(e); });
+    // Merge friends list
+    (fd.list || []).forEach(e => { if (!friendsList.includes(e)) friendsList.push(e); });
+  } catch(e) {}
 }
 
 function renderFtSent() {
@@ -5379,8 +5394,10 @@ async function _syncFriendRequestsFromFirebase() {
       await ffDB.ref('forge_friend_accepted/' + myKey + '/' + acceptorKey).remove().catch(()=>{});
       changed = true;
     }
-    if (changed) { saveState(); renderFtRequests(); renderFtFeed(); renderFtLeaderboard(); updateFriendsBadge(); }
-  } catch(e) {}
+    if (changed) { saveState(); renderFtFeed(); renderFtLeaderboard(); }
+    // Always re-render requests/sent/discover so Firebase data is reflected even if nothing was newly added
+    renderFtRequests(); renderFtSent(); renderFtDiscover(); updateFriendsBadge();
+  } catch(e) { renderFtRequests(); renderFtSent(); updateFriendsBadge(); }
 }
 
 function openAddFriendSheet() {
