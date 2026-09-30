@@ -4426,6 +4426,7 @@ function renderFriendsTab() {
   renderFtDiscover();
   updateFriendsBadge();
   _refreshFriendsFromFirebase();
+  _syncFriendRequestsFromFirebase();
 }
 
 async function _refreshFriendsFromFirebase() {
@@ -5252,12 +5253,18 @@ function reactToActivity(id, emoji) {
   saveState(); renderFtFeed();
 }
 
-function sendFriendRequest(targetId) {
+async function sendFriendRequest(targetId) {
   if (friendsSent.includes(targetId) || friendsList.includes(targetId)) return;
   friendsSent.push(targetId);
   if (isRealUser(targetId)) {
+    // Same-device: write directly to their localStorage
     const fd = getRealFriendsData(targetId);
     if (!fd.received.includes(activeAccountEmail)) { fd.received.push(activeAccountEmail); saveRealFriendsData(targetId, fd); }
+    // Cross-device: relay through Firebase
+    if (ffDB) {
+      const senderData = { name: userProfile.name||'', username: userProfile.username||'', email: activeAccountEmail, at: Date.now() };
+      await ffDB.ref('forge_friend_reqs/' + emailToFBKey(targetId) + '/' + emailToFBKey(activeAccountEmail)).set(senderData).catch(()=>{});
+    }
     const p = getRealUserProfile(targetId);
     showToast('Request sent to '+(p.name||targetId.split('@')[0]));
   } else {
@@ -5266,14 +5273,23 @@ function sendFriendRequest(targetId) {
   saveState(); renderFriendsTab();
 }
 
-function acceptFriendRequest(id) {
+async function acceptFriendRequest(id) {
   friendsReceived = friendsReceived.filter(u=>u!==id);
   if (!friendsList.includes(id)) friendsList.push(id);
   if (isRealUser(id)) {
+    // Same-device: update their localStorage
     const fd = getRealFriendsData(id);
     fd.sent = fd.sent.filter(e=>e!==activeAccountEmail);
     if (!fd.list.includes(activeAccountEmail)) fd.list.push(activeAccountEmail);
     saveRealFriendsData(id, fd);
+    // Cross-device: delete the request, notify sender they were accepted
+    if (ffDB) {
+      const myKey = emailToFBKey(activeAccountEmail);
+      const senderKey = emailToFBKey(id);
+      await ffDB.ref('forge_friend_reqs/' + myKey + '/' + senderKey).remove().catch(()=>{});
+      const myData = { name: userProfile.name||'', username: userProfile.username||'', email: activeAccountEmail, at: Date.now() };
+      await ffDB.ref('forge_friend_accepted/' + senderKey + '/' + myKey).set(myData).catch(()=>{});
+    }
     const p = getRealUserProfile(id);
     showToast((p.name||id.split('@')[0])+' added!');
   } else {
@@ -5283,14 +5299,55 @@ function acceptFriendRequest(id) {
   saveState(); renderFriendsTab();
 }
 
-function declineFriendRequest(id) {
+async function declineFriendRequest(id) {
   friendsReceived = friendsReceived.filter(u=>u!==id);
   if (isRealUser(id)) {
     const fd = getRealFriendsData(id);
     fd.sent = fd.sent.filter(e=>e!==activeAccountEmail);
     saveRealFriendsData(id, fd);
+    if (ffDB) {
+      await ffDB.ref('forge_friend_reqs/' + emailToFBKey(activeAccountEmail) + '/' + emailToFBKey(id)).remove().catch(()=>{});
+    }
   }
   saveState(); renderFtRequests(); updateFriendsBadge();
+}
+
+async function _syncFriendRequestsFromFirebase() {
+  if (!ffDB || !activeAccountEmail) return;
+  const myKey = emailToFBKey(activeAccountEmail);
+  let changed = false;
+  try {
+    // Incoming requests others sent me
+    const reqSnap = await ffDB.ref('forge_friend_reqs/' + myKey).once('value');
+    const reqs = reqSnap.val() || {};
+    for (const senderData of Object.values(reqs)) {
+      const email = senderData.email;
+      if (!email || friendsList.includes(email) || friendsReceived.includes(email)) continue;
+      friendsReceived.push(email);
+      if (senderData.name) {
+        const ex = getRealUserProfile(email);
+        if (!ex.name) localStorage.setItem('ff_'+email+'_profile', JSON.stringify({name:senderData.name, username:senderData.username||''}));
+      }
+      changed = true;
+    }
+    // Requests I sent that were accepted
+    const accSnap = await ffDB.ref('forge_friend_accepted/' + myKey).once('value');
+    const accepted = accSnap.val() || {};
+    for (const [acceptorKey, acceptorData] of Object.entries(accepted)) {
+      const email = acceptorData.email;
+      if (!email || friendsList.includes(email)) continue;
+      friendsList.push(email);
+      friendsSent = friendsSent.filter(e => e !== email);
+      if (acceptorData.name) {
+        const ex = getRealUserProfile(email);
+        if (!ex.name) localStorage.setItem('ff_'+email+'_profile', JSON.stringify({name:acceptorData.name, username:acceptorData.username||''}));
+      }
+      // Delete the notification once consumed
+      await ffDB.ref('forge_friend_accepted/' + myKey + '/' + acceptorKey).remove().catch(()=>{});
+      changed = true;
+    }
+    if (changed) { saveState(); renderFtRequests(); renderFtFeed(); renderFtLeaderboard(); updateFriendsBadge(); }
+  } catch(e) {}
 }
 
 function openAddFriendSheet() {
@@ -9313,6 +9370,7 @@ async function _bootWithEmail(email) {
   if (userProfile.setupComplete) {
     initFriendsData();
     pushUserToFirebase();
+    _syncFriendRequestsFromFirebase(); // check for cross-device requests/acceptances at login
     goScreen('screen-app');
     renderRoutineList(); renderLog(); renderLogStats(); buildHeatmap();
     checkActiveWorkout();
