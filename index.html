@@ -4437,12 +4437,11 @@ function _mergeFriendsFromStorage() {
     const raw = localStorage.getItem(getStorageKey('friends'));
     if (!raw) return;
     const fd = JSON.parse(raw);
-    // Merge received — add any entries not already in memory
     (fd.received || []).forEach(e => { if (!friendsReceived.includes(e) && !friendsList.includes(e)) friendsReceived.push(e); });
-    // Merge sent
     (fd.sent || []).forEach(e => { if (!friendsSent.includes(e)) friendsSent.push(e); });
-    // Merge friends list
     (fd.list || []).forEach(e => { if (!friendsList.includes(e)) friendsList.push(e); });
+    // Merge shared routines received on same device
+    (fd.sharedRec || []).forEach(sr => { if (!sharedRoutinesReceived.find(x => x.id === sr.id)) sharedRoutinesReceived.push(sr); });
   } catch(e) {}
 }
 
@@ -5047,24 +5046,30 @@ function closeShareRoutineSheet() {
   document.getElementById('share-routine-overlay').classList.remove('show');
 }
 
-function sendRoutineToFriend(rid, targetId, name) {
+async function sendRoutineToFriend(rid, targetId, name) {
   const r = userRoutines.find(x=>x.id===rid); if (!r) return;
   const already = sharedRoutinesSent.find(s=>s.rid===rid&&s.to===targetId);
   if (already) { showToast('Already sent to '+name); return; }
   sharedRoutinesSent.push({rid, to:targetId, toName:name, routineName:r.name, at:Date.now()});
   if (isRealUser(targetId)) {
+    const fromName = userProfile.name || (activeAccountEmail||'').split('@')[0];
+    const shareId = 'share-' + Date.now();
+    const shareObj = {
+      id: shareId, from: activeAccountEmail, fromName,
+      routineName: r.name,
+      routine: {name:r.name, daysPerWeek:r.daysPerWeek, goal:r.goal, week:1, owner:'self', clientName:'', clientLog:[],
+        days:r.days.map(d=>({label:d.label, exercises:(d.exercises||[]).map(e=>({name:e.name,sets:e.sets,reps:e.reps,muscle:e.muscle}))}))},
+      at: Date.now()
+    };
+    // Same-device path
     const fd = getRealFriendsData(targetId);
     fd.sharedRec = fd.sharedRec || [];
-    const fromName = userProfile.name || (activeAccountEmail||'').split('@')[0];
-    fd.sharedRec.push({
-      id:'share-'+Date.now(), from:activeAccountEmail, fromName,
-      routineName:r.name,
-      // clientLog and clientName intentionally stripped — shared routine arrives as a fresh 'self' routine
-      routine:{name:r.name, daysPerWeek:r.daysPerWeek, goal:r.goal, week:1, owner:'self', clientName:'', clientLog:[],
-        days:r.days.map(d=>({label:d.label, exercises:(d.exercises||[]).map(e=>({name:e.name,sets:e.sets,reps:e.reps,muscle:e.muscle}))}))},
-      at:Date.now()
-    });
+    fd.sharedRec.push(shareObj);
     saveRealFriendsData(targetId, fd);
+    // Cross-device path: relay through Firebase
+    if (ffDB) {
+      await ffDB.ref('forge_shared_routines/' + emailToFBKey(targetId) + '/' + shareId).set(shareObj).catch(()=>{});
+    }
   }
   saveState();
   openShareRoutineSheet(rid);
@@ -5394,10 +5399,20 @@ async function _syncFriendRequestsFromFirebase() {
       await ffDB.ref('forge_friend_accepted/' + myKey + '/' + acceptorKey).remove().catch(()=>{});
       changed = true;
     }
+    // Shared routines sent to me
+    const sharedSnap = await ffDB.ref('forge_shared_routines/' + myKey).once('value');
+    const sharedItems = sharedSnap.val() || {};
+    for (const [shareKey, shareData] of Object.entries(sharedItems)) {
+      if (sharedRoutinesReceived.find(s => s.id === shareKey)) continue;
+      sharedRoutinesReceived.push(shareData);
+      // Consume from Firebase once received
+      await ffDB.ref('forge_shared_routines/' + myKey + '/' + shareKey).remove().catch(()=>{});
+      changed = true;
+    }
     if (changed) { saveState(); renderFtFeed(); renderFtLeaderboard(); }
-    // Always re-render requests/sent/discover so Firebase data is reflected even if nothing was newly added
-    renderFtRequests(); renderFtSent(); renderFtDiscover(); updateFriendsBadge();
-  } catch(e) { renderFtRequests(); renderFtSent(); updateFriendsBadge(); }
+    // Always re-render requests/sent/shared/discover so Firebase data is reflected
+    renderFtRequests(); renderFtSent(); renderFtShared(); renderFtDiscover(); updateFriendsBadge();
+  } catch(e) { renderFtRequests(); renderFtSent(); renderFtShared(); updateFriendsBadge(); }
 }
 
 function openAddFriendSheet() {
