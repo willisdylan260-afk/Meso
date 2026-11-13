@@ -3894,7 +3894,7 @@ function renderProgressPRs() {
         <div class="pr-ex-name">${name}</div>
         <div class="pr-date">${pr.date}</div>
       </div>
-      <div class="pr-val">${pr.w} × ${pr.reps}</div>
+      <div class="pr-val">${pr.w} × ${fmtReps(pr.reps)}</div>
     </div>`).join('');
 }
 
@@ -5638,7 +5638,9 @@ function confirmClearHistory() {
 // ─────────────────────────────────────────
 const WEEKS = ['Wk 1','Wk 2','Wk 3','Wk 4'];
 let CUR = 0; // set dynamically from routine.week when loading a workout
-const REP_OPTS = [null,1,2,3,4,5,6,7,8,9,10,11,12,15,20];
+const REP_OPTS = [null,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51];
+// 51 is stored internally for "50+" (more than 50 reps)
+function fmtReps(r) { return r === 51 ? '50+' : r; }
 const DURATION_OPTS = [null,10,15,20,30,45,60,90,120,180,300];
 
 // Workout data — add/remove exercises here
@@ -5666,7 +5668,7 @@ let bwPickModeEi = null;
 let timedPickModeEi = null;
 let _timedCountdown = null; // { ei, si, target, startedAt, iv }
 let supersetPickEi = null;
-let _repPressTimer = null, _repPressLong = false, _repPressWasTouch = false;
+let _repPressTimer = null, _repPressLong = false, _repPressWasTouch = false, _repAutoInterval = null;
 // _1rmSheetEi replaced by _exToolsEi
 
 // ── Haptic feedback ──────────────────────────────
@@ -6129,24 +6131,43 @@ function startRepPress(e, ei, si, isDrop) {
   if (e.type === 'touchstart') _repPressWasTouch = true;
   _repPressLong = false;
   clearTimeout(_repPressTimer);
+  clearInterval(_repAutoInterval);
+  _repAutoInterval = null;
   _repPressTimer = setTimeout(() => {
     _repPressLong = true;
-    haptic(30);
-    incrementRIR(ei, si, isDrop);
-  }, 600);
+    _doAdvanceRep(ei, si, isDrop); // first step on hold trigger
+    _repAutoInterval = setInterval(() => _doAdvanceRep(ei, si, isDrop), 160);
+  }, 350);
 }
 function endRepPress(e, ei, si, isDrop) {
   if (e.type === 'mouseup' && _repPressWasTouch) { _repPressWasTouch = false; return; }
   clearTimeout(_repPressTimer);
+  clearInterval(_repAutoInterval);
+  _repAutoInterval = null;
   if (!_repPressLong) {
     if (isDrop) cycleDropRep(ei, si);
     else cycleRep(ei, si);
+  } else {
+    const target = isDrop ? wktData[ei].sets[si].drop : wktData[ei].sets[si];
+    if (target && target.h[CUR] !== null) startRest(userProfile.restDefault || 90);
+    renderWkt(); saveActiveWorkout();
   }
   _repPressLong = false;
 }
 function cancelRepPress() {
   clearTimeout(_repPressTimer);
+  clearInterval(_repAutoInterval);
+  _repAutoInterval = null;
   _repPressLong = false;
+}
+function _doAdvanceRep(ei, si, isDrop) {
+  const target = isDrop ? wktData[ei].sets[si].drop : wktData[ei].sets[si];
+  if (!target) return;
+  const idx = REP_OPTS.indexOf(target.h[CUR]);
+  if (idx >= REP_OPTS.length - 1) { clearInterval(_repAutoInterval); _repAutoInterval = null; return; }
+  target.h[CUR] = REP_OPTS[idx + 1];
+  haptic(10);
+  renderWkt(); saveActiveWorkout();
 }
 function incrementRIR(ei, si, isDrop) {
   const target = isDrop ? wktData[ei].sets[si].drop : wktData[ei].sets[si];
@@ -6664,7 +6685,7 @@ function fmtLastInline(last) {
   const fmtS = s => {
     const w = s.w === 'BW' ? 'BW' : s.w;
     const r = (s.rir != null) ? (s.rir === 0 ? ' @fail' : `@${s.rir >= 5 ? '5+' : s.rir}`) : '';
-    return `${w}×${s.reps}${r}`;
+    return `${w}×${fmtReps(s.reps)}${r}`;
   };
   if (sets.length <= 4) return 'Last: ' + sets.map(fmtS).join(' · ');
   const top = sets.filter(s => s.w !== 'BW').reduce((a, b) => b.w > a.w ? b : a, sets[0]);
@@ -6714,7 +6735,7 @@ function renderWkt() {
           const rirTag = s.rir != null
             ? `<span style="font-size:10px;color:var(--text5);margin-left:3px">${s.rir === 0 ? '@fail' : `@${s.rir >= 5 ? '5+' : s.rir} RIR`}</span>`
             : '';
-          const perfText = isBWLast ? `BW × ${s.reps} reps` : `${s.w} lbs × ${s.reps} reps`;
+          const perfText = isBWLast ? `BW × ${fmtReps(s.reps)} reps` : `${s.w} lbs × ${fmtReps(s.reps)} reps`;
           return `<div class="last-set-row"><span class="last-sn">S${si+1}</span><span class="last-perf">${perfText}</span>${rirTag}${deltaHtml}</div>`;
         }).join('') : '';
         lastSection = `<div class="last-hd" onclick="toggleLast(${ei})"><span class="last-lbl">Last session</span><i class="ti ti-chevron-down last-chev${ex.lastOpen ? ' open' : ''}"></i></div>${ex.lastOpen ? `<div style="margin-bottom:8px">${lastRows}</div>` : ''}`;
@@ -6727,7 +6748,7 @@ function renderWkt() {
         const prRows = ex.prOpen ? prHistory.map((p, pi) => `
           <div class="last-set-row" style="${pi === 0 ? 'color:var(--gold)' : ''}">
             <span class="last-sn" style="${pi === 0 ? 'color:var(--gold)' : ''}">${pi === 0 ? '🏆' : `#${pi + 1}`}</span>
-            <span class="last-perf" style="${pi === 0 ? 'color:var(--gold);font-weight:700' : ''}">${p.w} lbs × ${p.reps}</span>
+            <span class="last-perf" style="${pi === 0 ? 'color:var(--gold);font-weight:700' : ''}">${p.w} lbs × ${fmtReps(p.reps)}</span>
             <span style="font-size:11px;color:var(--text5);margin-left:auto">${p.date}</span>
           </div>`).join('') : '';
         prSection = `<div class="last-hd" onclick="togglePrHistory(${ei})"><span class="last-lbl" style="color:var(--gold)">PR history · ${topPR.w} lbs × ${topPR.reps}</span><i class="ti ti-chevron-down last-chev${ex.prOpen ? ' open' : ''}"></i></div>${ex.prOpen ? `<div style="margin-bottom:8px">${prRows}</div>` : ''}`;
@@ -6813,7 +6834,7 @@ function renderWkt() {
               sub = r !== null ? 'done' : '—';
             }
           } else {
-            disp = (ex.isNew && wi < CUR) ? '—' : r !== null ? r : '—';
+            disp = (ex.isNew && wi < CUR) ? '—' : r !== null ? fmtReps(r) : '—';
             const rirVal = (isCur && s.rirH) ? s.rirH[CUR] : null;
             const rirSub = rirVal != null ? (rirVal === 0 ? '@ fail' : `@ ${rirVal >= 5 ? '5+' : rirVal}`) : null;
             sub = pr === 'rep' ? 'Rep PR' : pr ? 'PR' : r !== null ? (rirSub || 'done') : isCur ? 'tap' : '—';
@@ -6834,11 +6855,12 @@ function renderWkt() {
             }
             html += `<div class="${cls}"><div class="rep-val"${valAttrs}>${disp}</div><div class="rep-sub"${subAttrs}>${sub}</div></div>`;
           } else {
-            let pressAttrs = '';
+            let valPressAttrs = '', subClickAttr = '';
             if (isCur && !canPick && !canBWPick && !canTimedPick) {
-              pressAttrs = ` ontouchstart="startRepPress(event,${ei},${si},false)" ontouchend="endRepPress(event,${ei},${si},false)" ontouchmove="cancelRepPress()" onmousedown="startRepPress(event,${ei},${si},false)" onmouseup="endRepPress(event,${ei},${si},false)" onmouseleave="cancelRepPress()" oncontextmenu="return false"`;
+              valPressAttrs = ` ontouchstart="startRepPress(event,${ei},${si},false)" ontouchend="endRepPress(event,${ei},${si},false)" ontouchmove="cancelRepPress()" onmousedown="startRepPress(event,${ei},${si},false)" onmouseup="endRepPress(event,${ei},${si},false)" onmouseleave="cancelRepPress()" oncontextmenu="return false" style="cursor:pointer"`;
+              if (r !== null) subClickAttr = ` onclick="event.stopPropagation();incrementRIR(${ei},${si},false)" style="cursor:pointer"`;
             }
-            html += `<div class="${cls}"${pressAttrs}><div class="rep-val">${disp}</div><div class="rep-sub">${sub}</div></div>`;
+            html += `<div class="${cls}"><div class="rep-val"${valPressAttrs}>${disp}</div><div class="rep-sub"${subClickAttr}>${sub}</div></div>`;
           }
         });
         html += `</div>`;
@@ -6862,14 +6884,16 @@ function renderWkt() {
             const r = s.drop.h[wi]; const isCur = wi === CUR;
             let cls = 'rep-box';
             if (r !== null) cls += ' logged'; if (isCur) cls += ' cur-wk';
-            const disp = r !== null ? r : '—';
+            const disp = r !== null ? fmtReps(r) : '—';
             const dropRirVal = (isCur && s.drop.rirH) ? s.drop.rirH[CUR] : null;
             const dropRirSub = dropRirVal != null ? (dropRirVal === 0 ? '@ fail' : `@ ${dropRirVal >= 5 ? '5+' : dropRirVal}`) : null;
             const sub = r !== null ? (dropRirSub || 'done') : isCur ? 'tap' : '—';
-            const dropPressAttrs = isCur
-              ? ` ontouchstart="startRepPress(event,${ei},${si},true)" ontouchend="endRepPress(event,${ei},${si},true)" ontouchmove="cancelRepPress()" onmousedown="startRepPress(event,${ei},${si},true)" onmouseup="endRepPress(event,${ei},${si},true)" onmouseleave="cancelRepPress()" oncontextmenu="return false"`
-              : '';
-            html += `<div class="${cls}"${dropPressAttrs}><div class="rep-val">${disp}</div><div class="rep-sub">${sub}</div></div>`;
+            let dropValPress = '', dropSubClick = '';
+            if (isCur) {
+              dropValPress = ` ontouchstart="startRepPress(event,${ei},${si},true)" ontouchend="endRepPress(event,${ei},${si},true)" ontouchmove="cancelRepPress()" onmousedown="startRepPress(event,${ei},${si},true)" onmouseup="endRepPress(event,${ei},${si},true)" onmouseleave="cancelRepPress()" oncontextmenu="return false" style="cursor:pointer"`;
+              if (r !== null) dropSubClick = ` onclick="event.stopPropagation();incrementRIR(${ei},${si},true)" style="cursor:pointer"`;
+            }
+            html += `<div class="${cls}"><div class="rep-val"${dropValPress}>${disp}</div><div class="rep-sub"${dropSubClick}>${sub}</div></div>`;
           });
           html += `</div>`;
           html += `<button type="button" class="rm-set-btn" onclick="removeDropSet(${ei},${si})"><i class="ti ti-minus" style="font-size:9px"></i></button>`;
