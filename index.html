@@ -419,7 +419,7 @@ a, button, [role="button"], input, label, select, textarea {
 .w-input:focus{border-bottom-color:var(--accent)}
 .w-unit{font-size:11px;color:var(--text4)}
 .bw-active-num{color:var(--accent)}
-.rep-box{background:var(--card2);border:0.5px solid var(--border);border-radius:9px;height:46px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:all .12s}
+.rep-box{background:var(--card2);border:0.5px solid var(--border);border-radius:9px;height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:all .12s;position:relative;overflow:hidden}
 .rep-box:active{transform:scale(.94)}
 .rep-box.logged{background:var(--accent-dim);border-color:var(--accent-border);box-shadow:var(--glow-logged)}
 .rep-box.cur-wk{border-color:var(--accent-dark)}
@@ -427,12 +427,15 @@ a, button, [role="button"], input, label, select, textarea {
 .rep-box.empty-new{opacity:.35;border-style:dashed}
 .rep-box.timed-active{background:var(--accent-dim);border-color:var(--accent);animation:timed-pulse .9s ease-in-out infinite}
 @keyframes timed-pulse{0%,100%{border-color:var(--accent)}50%{border-color:var(--accent-dark)}}
-.rep-val{font-size:15px;font-weight:600;color:var(--text3);line-height:1}
+.rep-val{font-size:16px;font-weight:600;color:var(--text3);line-height:1;pointer-events:none}
 .rep-box.logged .rep-val{color:var(--accent)}
 .rep-box.pr-box .rep-val{color:var(--gold)}
-.rep-sub{font-size:9px;color:var(--text5);margin-top:2px;text-transform:uppercase;letter-spacing:.03em}
+.rep-sub{font-size:9px;color:var(--text5);margin-top:2px;text-transform:uppercase;letter-spacing:.03em;position:relative;z-index:2}
 .rep-box.logged .rep-sub{color:var(--accent-dark)}
 .rep-box.pr-box .rep-sub{color:#a07020}
+.rep-tap-dec,.rep-tap-inc{position:absolute;top:0;bottom:0;z-index:1;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.rep-tap-dec{left:0;width:50%}
+.rep-tap-inc{right:0;width:50%}
 .add-set-btn{display:flex;align-items:center;gap:5px;margin-top:10px;font-size:12px;color:var(--accent-dark);background:transparent;border:none;cursor:pointer;font-family:inherit;padding:2px}
 .add-set-btn:hover{color:var(--accent)}
 .add-set-split{display:inline-flex;align-items:stretch;margin-top:8px;border-radius:9px;overflow:hidden;border:0.5px solid var(--accent-border)}
@@ -5668,7 +5671,7 @@ let bwPickModeEi = null;
 let timedPickModeEi = null;
 let _timedCountdown = null; // { ei, si, target, startedAt, iv }
 let supersetPickEi = null;
-let _repPressTimer = null, _repPressLong = false, _repPressWasTouch = false, _repAutoInterval = null;
+let _repPressTimer = null, _repPressLong = false, _repPressWasTouch = false, _repAutoInterval = null, _repPressDir = 1;
 // _1rmSheetEi replaced by _exToolsEi
 
 // ── Haptic feedback ──────────────────────────────
@@ -5885,13 +5888,14 @@ function _updateAwcMeta() {
   });
 })();
 
-function cycleRep(ei, si) {
+function cycleRep(ei, si, dir) {
   const prev = wktData[ei].sets[si].h[CUR];
   const idx = REP_OPTS.indexOf(prev);
-  wktData[ei].sets[si].h[CUR] = REP_OPTS[(idx + 1) % REP_OPTS.length];
+  const nextIdx = (dir === -1) ? Math.max(0, idx - 1) : (idx + 1) % REP_OPTS.length;
+  wktData[ei].sets[si].h[CUR] = REP_OPTS[nextIdx];
   const next = wktData[ei].sets[si].h[CUR];
   if (next !== null) {
-    haptic(prev === null ? [40, 30, 20] : 20); // stronger on first log, light on cycle
+    haptic(prev === null ? [40, 30, 20] : 20);
     startRest(userProfile.restDefault || 90);
   } else {
     haptic(10);
@@ -6111,11 +6115,12 @@ function _stopTimedCountdown(ei, si, completed) {
   renderWkt();
   saveActiveWorkout();
 }
-function cycleDropRep(ei, si) {
+function cycleDropRep(ei, si, dir) {
   const drop = wktData[ei].sets[si].drop; if (!drop) return;
   const prev = drop.h[CUR];
   const idx = REP_OPTS.indexOf(prev);
-  drop.h[CUR] = REP_OPTS[(idx + 1) % REP_OPTS.length];
+  const nextIdx = (dir === -1) ? Math.max(0, idx - 1) : (idx + 1) % REP_OPTS.length;
+  drop.h[CUR] = REP_OPTS[nextIdx];
   if (drop.h[CUR] !== null) {
     haptic(20);
     startRest(userProfile.restDefault || 90);
@@ -6126,17 +6131,18 @@ function cycleDropRep(ei, si) {
 }
 
 // ── RIR (Reps in Reserve) long-press ─────────────────────────────
-function startRepPress(e, ei, si, isDrop) {
+function startRepPress(e, ei, si, isDrop, dir) {
   if (e.type === 'mousedown' && _repPressWasTouch) return;
   if (e.type === 'touchstart') _repPressWasTouch = true;
+  _repPressDir = dir !== undefined ? dir : 1;
   _repPressLong = false;
   clearTimeout(_repPressTimer);
   clearInterval(_repAutoInterval);
   _repAutoInterval = null;
   _repPressTimer = setTimeout(() => {
     _repPressLong = true;
-    _doAdvanceRep(ei, si, isDrop); // first step on hold trigger
-    _repAutoInterval = setInterval(() => _doAdvanceRep(ei, si, isDrop), 160);
+    _doAdvanceRep(ei, si, isDrop, _repPressDir);
+    _repAutoInterval = setInterval(() => _doAdvanceRep(ei, si, isDrop, _repPressDir), 160);
   }, 350);
 }
 function endRepPress(e, ei, si, isDrop) {
@@ -6145,8 +6151,8 @@ function endRepPress(e, ei, si, isDrop) {
   clearInterval(_repAutoInterval);
   _repAutoInterval = null;
   if (!_repPressLong) {
-    if (isDrop) cycleDropRep(ei, si);
-    else cycleRep(ei, si);
+    if (isDrop) cycleDropRep(ei, si, _repPressDir);
+    else cycleRep(ei, si, _repPressDir);
   } else {
     const target = isDrop ? wktData[ei].sets[si].drop : wktData[ei].sets[si];
     if (target && target.h[CUR] !== null) startRest(userProfile.restDefault || 90);
@@ -6160,12 +6166,17 @@ function cancelRepPress() {
   _repAutoInterval = null;
   _repPressLong = false;
 }
-function _doAdvanceRep(ei, si, isDrop) {
+function _doAdvanceRep(ei, si, isDrop, dir) {
   const target = isDrop ? wktData[ei].sets[si].drop : wktData[ei].sets[si];
   if (!target) return;
   const idx = REP_OPTS.indexOf(target.h[CUR]);
-  if (idx >= REP_OPTS.length - 1) { clearInterval(_repAutoInterval); _repAutoInterval = null; return; }
-  target.h[CUR] = REP_OPTS[idx + 1];
+  if (dir === -1) {
+    if (idx <= 1) { clearInterval(_repAutoInterval); _repAutoInterval = null; return; } // stop at 1 during hold
+    target.h[CUR] = REP_OPTS[idx - 1];
+  } else {
+    if (idx >= REP_OPTS.length - 1) { clearInterval(_repAutoInterval); _repAutoInterval = null; return; }
+    target.h[CUR] = REP_OPTS[idx + 1];
+  }
   haptic(10);
   renderWkt(); saveActiveWorkout();
 }
@@ -6684,7 +6695,7 @@ function fmtLastInline(last) {
   if (!sets.length) return null;
   const fmtS = s => {
     const w = s.w === 'BW' ? 'BW' : s.w;
-    const r = (s.rir != null) ? (s.rir === 0 ? ' @fail' : `@${s.rir >= 5 ? '5+' : s.rir}`) : '';
+    const r = (s.rir != null) ? (s.rir === 0 ? ' fail' : ` ${s.rir >= 5 ? '5+' : s.rir}rir`) : '';
     return `${w}×${fmtReps(s.reps)}${r}`;
   };
   if (sets.length <= 4) return 'Last: ' + sets.map(fmtS).join(' · ');
@@ -6733,7 +6744,7 @@ function renderWkt() {
             delta < 0 ? `<span class="last-delta" style="color:var(--red)">${delta} lbs today</span>` :
             `<span class="last-delta same">same</span>`;
           const rirTag = s.rir != null
-            ? `<span style="font-size:10px;color:var(--text5);margin-left:3px">${s.rir === 0 ? '@fail' : `@${s.rir >= 5 ? '5+' : s.rir} RIR`}</span>`
+            ? `<span style="font-size:10px;color:var(--text5);margin-left:3px">${s.rir === 0 ? 'fail' : `${s.rir >= 5 ? '5+' : s.rir} RIR`}</span>`
             : '';
           const perfText = isBWLast ? `BW × ${fmtReps(s.reps)} reps` : `${s.w} lbs × ${fmtReps(s.reps)} reps`;
           return `<div class="last-set-row"><span class="last-sn">S${si+1}</span><span class="last-perf">${perfText}</span>${rirTag}${deltaHtml}</div>`;
@@ -6836,7 +6847,7 @@ function renderWkt() {
           } else {
             disp = (ex.isNew && wi < CUR) ? '—' : r !== null ? fmtReps(r) : '—';
             const rirVal = (isCur && s.rirH) ? s.rirH[CUR] : null;
-            const rirSub = rirVal != null ? (rirVal === 0 ? '@ fail' : `@ ${rirVal >= 5 ? '5+' : rirVal}`) : null;
+            const rirSub = rirVal != null ? (rirVal === 0 ? 'fail' : `${rirVal >= 5 ? '5+' : rirVal} rir`) : null;
             sub = pr === 'rep' ? 'Rep PR' : pr ? 'PR' : r !== null ? (rirSub || 'done') : isCur ? 'tap' : '—';
           }
           if (isTimedSet && isCur && !canPick && !canBWPick && !canTimedPick) {
@@ -6855,12 +6866,14 @@ function renderWkt() {
             }
             html += `<div class="${cls}"><div class="rep-val"${valAttrs}>${disp}</div><div class="rep-sub"${subAttrs}>${sub}</div></div>`;
           } else {
-            let valPressAttrs = '', subClickAttr = '';
+            let subClickAttr = '', tapOverlays = '';
             if (isCur && !canPick && !canBWPick && !canTimedPick) {
-              valPressAttrs = ` ontouchstart="startRepPress(event,${ei},${si},false)" ontouchend="endRepPress(event,${ei},${si},false)" ontouchmove="cancelRepPress()" onmousedown="startRepPress(event,${ei},${si},false)" onmouseup="endRepPress(event,${ei},${si},false)" onmouseleave="cancelRepPress()" oncontextmenu="return false" style="cursor:pointer"`;
+              const pDec = `ontouchstart="startRepPress(event,${ei},${si},false,-1)" ontouchend="endRepPress(event,${ei},${si},false)" ontouchmove="cancelRepPress()" onmousedown="startRepPress(event,${ei},${si},false,-1)" onmouseup="endRepPress(event,${ei},${si},false)" onmouseleave="cancelRepPress()" oncontextmenu="return false"`;
+              const pInc = `ontouchstart="startRepPress(event,${ei},${si},false,1)" ontouchend="endRepPress(event,${ei},${si},false)" ontouchmove="cancelRepPress()" onmousedown="startRepPress(event,${ei},${si},false,1)" onmouseup="endRepPress(event,${ei},${si},false)" onmouseleave="cancelRepPress()" oncontextmenu="return false"`;
+              tapOverlays = `<div class="rep-tap-dec" ${pDec}></div><div class="rep-tap-inc" ${pInc}></div>`;
               if (r !== null) subClickAttr = ` onclick="event.stopPropagation();incrementRIR(${ei},${si},false)" style="cursor:pointer"`;
             }
-            html += `<div class="${cls}"><div class="rep-val"${valPressAttrs}>${disp}</div><div class="rep-sub"${subClickAttr}>${sub}</div></div>`;
+            html += `<div class="${cls}"><div class="rep-val">${disp}</div><div class="rep-sub"${subClickAttr}>${sub}</div>${tapOverlays}</div>`;
           }
         });
         html += `</div>`;
@@ -6886,14 +6899,16 @@ function renderWkt() {
             if (r !== null) cls += ' logged'; if (isCur) cls += ' cur-wk';
             const disp = r !== null ? fmtReps(r) : '—';
             const dropRirVal = (isCur && s.drop.rirH) ? s.drop.rirH[CUR] : null;
-            const dropRirSub = dropRirVal != null ? (dropRirVal === 0 ? '@ fail' : `@ ${dropRirVal >= 5 ? '5+' : dropRirVal}`) : null;
+            const dropRirSub = dropRirVal != null ? (dropRirVal === 0 ? 'fail' : `${dropRirVal >= 5 ? '5+' : dropRirVal} rir`) : null;
             const sub = r !== null ? (dropRirSub || 'done') : isCur ? 'tap' : '—';
-            let dropValPress = '', dropSubClick = '';
+            let dropSubClick = '', dropTapOverlays = '';
             if (isCur) {
-              dropValPress = ` ontouchstart="startRepPress(event,${ei},${si},true)" ontouchend="endRepPress(event,${ei},${si},true)" ontouchmove="cancelRepPress()" onmousedown="startRepPress(event,${ei},${si},true)" onmouseup="endRepPress(event,${ei},${si},true)" onmouseleave="cancelRepPress()" oncontextmenu="return false" style="cursor:pointer"`;
+              const dpDec = `ontouchstart="startRepPress(event,${ei},${si},true,-1)" ontouchend="endRepPress(event,${ei},${si},true)" ontouchmove="cancelRepPress()" onmousedown="startRepPress(event,${ei},${si},true,-1)" onmouseup="endRepPress(event,${ei},${si},true)" onmouseleave="cancelRepPress()" oncontextmenu="return false"`;
+              const dpInc = `ontouchstart="startRepPress(event,${ei},${si},true,1)" ontouchend="endRepPress(event,${ei},${si},true)" ontouchmove="cancelRepPress()" onmousedown="startRepPress(event,${ei},${si},true,1)" onmouseup="endRepPress(event,${ei},${si},true)" onmouseleave="cancelRepPress()" oncontextmenu="return false"`;
+              dropTapOverlays = `<div class="rep-tap-dec" ${dpDec}></div><div class="rep-tap-inc" ${dpInc}></div>`;
               if (r !== null) dropSubClick = ` onclick="event.stopPropagation();incrementRIR(${ei},${si},true)" style="cursor:pointer"`;
             }
-            html += `<div class="${cls}"><div class="rep-val"${dropValPress}>${disp}</div><div class="rep-sub"${dropSubClick}>${sub}</div></div>`;
+            html += `<div class="${cls}"><div class="rep-val">${disp}</div><div class="rep-sub"${dropSubClick}>${sub}</div>${dropTapOverlays}</div>`;
           });
           html += `</div>`;
           html += `<button type="button" class="rm-set-btn" onclick="removeDropSet(${ei},${si})"><i class="ti ti-minus" style="font-size:9px"></i></button>`;
