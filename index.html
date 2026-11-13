@@ -6637,7 +6637,7 @@ function togglePrHistory(ei) {
 }
 
 function getExPRHistory(exName) {
-  const src = getProgressLogSource();
+  const src = getActiveRoutineLogSrc();
   const sorted = [...src].sort((a,b) => new Date(a.timestamp||0) - new Date(b.timestamp||0));
   const milestones = [];
   let bestW = -1, bestReps = -1;
